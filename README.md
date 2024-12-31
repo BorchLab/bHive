@@ -1,6 +1,6 @@
 # bHIVE
 
-## Artifical Immune Network-based Machine Learning Pacakge
+## Artifical Immune Network-based Machine Learning Package
 
 <img align="right" src="https://github.com/ncborcherding/bHive/blob/main/www/bhive_hex.png" width="305" height="352">
 
