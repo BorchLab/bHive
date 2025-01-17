@@ -21,22 +21,21 @@ and affinity/distance metrics to iteratively refine the antibody population.
 
 The algorithm operates in the following steps:
 
-1. **Affinity Calculation**: For a data point \( x \) and an antibody \( a \), the affinity is defined as:
-   \[
-   \text{Affinity}(x, a) = f(x, a; \text{params})
-   \]
-   where \( f \) is a similarity kernel such as Gaussian (RBF), Laplace, or cosine similarity.
-   
-2. **Clonal Expansion and Mutation**: Top-matching antibodies are cloned and mutated:
-   \[
-   a' = a + \epsilon
-   \]
-   where \( \epsilon \) is sampled from a distribution scaled by affinity and iteration parameters.
+1. **Affinity Calculation**: For a data point `x` and an antibody `a`, the affinity is defined as:
 
-3. **Network Suppression**: Antibodies that are too similar (within a threshold \( \epsilon \)) are suppressed to maintain diversity:
-   \[
-   \text{Distance}(a_i, a_j) < \epsilon \implies \text{Suppress } a_j
-   \]
+   Affinity(x, a) = f(x, a; params)
+
+   where `f` is a similarity kernel such as Gaussian (RBF), Laplace, or cosine similarity.
+
+2. **Clonal Expansion and Mutation**: Top-matching antibodies are cloned and mutated:
+
+   a' = a + ε
+
+   where `ε` is sampled from a distribution scaled by affinity and iteration parameters.
+
+3. **Network Suppression**: Antibodies that are too similar (within a threshold `ε`) are suppressed to maintain diversity:
+
+   Distance(a_i, a_j) < ε ⇒ Suppress a_j
 
 4. **Assignment**: Data points are assigned to antibodies using affinity (for classification/regression) or distance (for clustering).
 
@@ -46,7 +45,7 @@ To install the **bHIVE** from GitHub, use:
 
 ```R
 # Install bHIVE from GitHub
-devtools::install_github("yourusername/bHIVE")
+devtools::install_github("ncborcherding/bHIVE")
 ```
 
 ## Examples
