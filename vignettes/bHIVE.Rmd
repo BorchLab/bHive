@@ -78,21 +78,19 @@ data(iris)
 X <- as.matrix(iris[, 1:4])
 
 # Configure bHIVE parameters for clustering
-set.seed(123)
+set.seed(42)
 res <- bHIVE(
-  X = X,                  # Input data
-  task = "clustering",    # Task type
-  nAntibodies = 20,       # Number of antibodies
-  beta = 5,               # Clone multiplier
-  epsilon = 0.01,         # Suppression threshold
-  maxIter = 20,           # Maximum iterations
+  X = X,                      # Input data
+  task = "clustering",        # Task type
+  nAntibodies = 20,           # Number of antibodies
+  beta = 5,                   # Clone multiplier
+  epsilon = 0.01,             # Suppression threshold
+  maxIter = 20,               # Maximum iterations
   affinityFunc = "gaussian",  # Affinity function
   distFunc = "euclidean",     # Distance function
-  verbose = TRUE          # Print progress
+  verbose = TRUE              # Print progress
 )
 ```
-
----
 
 # Applications
 
@@ -109,9 +107,9 @@ X <- as.matrix(iris[, 1:4])
 set.seed(42)
 res <- bHIVE(X = X, 
              task = "clustering", 
-             nAntibodies = 20, 
+             nAntibodies = 10, 
              beta = 5, 
-             epsilon = 0.01, 
+             epsilon = 0.05, 
              maxIter = 20, 
              k = 3)
 
@@ -174,8 +172,15 @@ X <- as.matrix(Boston[, -14])
 y <- Boston$medv
 
 # Perform regression
-set.seed(123)
-res <- bHIVE(X = X, y = y, task = "regression", nAntibodies = 50, beta = 5, epsilon = 0.01, maxIter = 20, k = 3)
+set.seed(42)
+res <- bHIVE(X = X, 
+             y = y, 
+             task = "regression", 
+             nAntibodies = 40, 
+             beta = 5, 
+             epsilon = 0.01, 
+             maxIter = 20, 
+             k = 3,)
 
 # Compare predicted vs actual
 cor(res$assignments, y)
@@ -202,8 +207,11 @@ grid <- expand.grid(
 )
 
 # Perform tuning
-set.seed(123)
-tuning_results <- tune_bHIVE(X = X, task = "clustering", grid = grid, metric = "silhouette")
+set.seed(42)
+tuning_results <- swarmbHIVE(X = X, 
+                             task = "clustering", 
+                             grid = grid, 
+                             metric = "silhouette")
 
 # Best parameters
 tuning_results$best_params
@@ -223,22 +231,24 @@ The `bHIVE` package provides a `caret` wrapper for seamless integration with the
 ```{r tidy = FALSE}
 # Train using caret
 train_control <- trainControl(method = "cv", number = 5)
-set.seed(123)
-model <- train(
-    x = X,
-    y = y,
-    method = bHIVEModel,
-    trControl = train_control,
-    tuneGrid = expand.grid(
-        nAntibodies = c(10, 20),
-        beta = c(3, 5),
-        epsilon = c(0.01, 0.05)
-    )
+set.seed(42)
+model <- train(x = X,
+               y = y,
+               method = bHIVEModel,
+               trControl = train_control,
+               tuneGrid = expand.grid(
+                    nAntibodies = c(10, 20),
+                    beta = c(3, 5),
+                    epsilon = c(0.01, 0.05)
+                )
 )
 
 # Visualize caret results
 ggplot(model) +
-    labs(title = "Caret Tuning Results for bHIVE", x = "Hyperparameter Combination", y = "Performance Metric")
+    labs(title = "Caret Tuning Results for bHIVE", 
+         x = "Hyperparameter Combination", 
+         y = "Performance Metric") +
+    theme_minimal()
 ```
 
 # Conclusions

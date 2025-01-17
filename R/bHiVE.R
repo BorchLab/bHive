@@ -95,6 +95,7 @@
 #'              verbose = FALSE)
 #' cor(res$assignments, y)
 #' 
+#' @importFrom stats rnorm runif sd
 #' @export
 bHIVE <- function(X, 
                   y = NULL, 

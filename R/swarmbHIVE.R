@@ -51,7 +51,9 @@
 #'
 #' # Best parameters
 #' print(tuning_results$best_params)
-#' 
+#' @importFrom magrittr %>%
+#' @importFrom cluster silhouette
+#' @importFrom stats dist
 #' @export
 swarmbHIVE <- function(X, y = NULL, task = "clustering", grid, metric = "silhouette", verbose = TRUE, seed = NULL) {
   # Set random seed
@@ -103,7 +105,7 @@ swarmbHIVE <- function(X, y = NULL, task = "clustering", grid, metric = "silhoue
     if (task == "clustering") {
       cluster_labels <- model$assignments
       metric_value <- if (metric == "silhouette") {
-        cluster::silhouette(cluster_labels, dist(X))[, 3] %>% mean(na.rm = TRUE)
+        silhouette(cluster_labels, dist(X))[, 3] %>% mean(na.rm = TRUE)
       } else {
         stop("Invalid metric for clustering.")
       }

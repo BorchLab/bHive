@@ -74,5 +74,4 @@ tuning_results <- swarmbHIVE(X = X,
 
 # Best parameters
 print(tuning_results$best_params)
-
 }

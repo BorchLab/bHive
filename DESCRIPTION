@@ -12,11 +12,9 @@ biocViews: Software, Classification, Annotation, Regression, Classification
 Depends: 
     R (>= 4.0.0)
 Imports: 
-    caret,
     cluster,
-    stats,
-    utils,
-    methods
+    magrittr,
+    stats
 Suggests:
     caret, 
     devtools,
