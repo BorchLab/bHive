@@ -117,16 +117,16 @@ cor(res$assignments, y)
 
 #### If you run into any issues or bugs please submit a [GitHub issue](https://github.com/ncborcherding/bHIVE/issues) with details of the issue.
 
-- If possible please include a [reproducible example](https://reprex.tidyverse.org/). 
+If possible please include a [reproducible example](https://reprex.tidyverse.org/). 
 
-##### Any requests for new features or enhancements can also be submitted as [GitHub issues](https://github.com/ncborcherding/bHIVE/issues).
+#### Any requests for new features or enhancements can also be submitted as [GitHub issues](https://github.com/ncborcherding/bHIVE/issues).
 
 ### Contributing
 
 We welcome contributions to the bHIVE project! To contribute:
 
 * Fork the repository.
-* Create a feature branch (git checkout -b feature-branch).
-* Commit your changes (git commit -m "Add new feature").
-* Push to the branch (git push origin feature-branch).
+* Create a feature branch (`git checkout -b feature-branch`).
+* Commit your changes (`git commit -m "Add new feature"`).
+* Push to the branch (`git push origin feature-branch`).
 * Open a pull request.

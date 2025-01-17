@@ -1,0 +1,250 @@
+---
+title: "The buzz on using bHIVE"
+author: 
+  name: Nick Borcherding
+  email: ncborch@gmail.com
+  affiliation: Washington University in St. Louis, School of Medicine, St. Louis, MO, USA
+date: "`r Sys.Date()`"
+output:
+  BiocStyle::html_document:
+    toc_float: true
+package: bHIVE
+vignette: >
+  %\VignetteIndexEntry{The buzz on using bHIVE}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+```{r, echo=FALSE, results="hide", message=FALSE}
+knitr::opts_chunk$set(error=FALSE, message=FALSE, warning=FALSE)
+library(BiocStyle)
+library(bHIVE)
+library(ggplot2)
+library(caret)
+```
+
+# Introduction
+
+The **bHIVE** package implements an Artificial Immune Network (AI-Net) algorithm for clustering, classification, and regression tasks. Inspired by biological immune systems, bHIVE uses principles like clonal selection, mutation, and suppression to analyze and model data. 
+
+This vignette demonstrates how to:
+1. Perform clustering, classification, and regression using `bHIVE`.
+2. Tune hyperparameters using `tune_bHIVE`.
+3. Use the `caret` wrapper for easy integration with machine learning workflows.
+4. Visualize results with `ggplot2`.
+
+## Parametes for `bHIVE()`
+
+The behavior of the `bHIVE` function can be fine-tuned using a range of hyperparameters. Below is a description of the key parameters:
+
+| **Parameter**         | **Description**                                                                                               |
+|------------------------|-------------------------------------------------------------------------------------------------------------|
+| `X`                   | A numeric matrix or data frame of input features (rows are observations, columns are features).              |
+| `y`                   | (Optional) Target vector for classification (factor) or regression (numeric). If `NULL`, clustering is performed. |
+| `task`                | Specifies the task: `"clustering"`, `"classification"`, or `"regression"`.                                   |
+| `nAntibodies`         | Number of initial antibodies in the population. Larger values increase diversity but add computational cost.  |
+| `beta`                | Clone multiplier. Determines how many clones are generated for top-matching antibodies.                      |
+| `epsilon`             | Suppression threshold. Antibodies closer than `epsilon` are considered redundant and removed.                |
+| `maxIter`             | Maximum number of iterations for the algorithm.                                                             |
+| `affinityFunc`        | Affinity (similarity) function. Options include `"gaussian"`, `"laplace"`, `"polynomial"`, `"cosine"`, `"hamming"`. |
+| `distFunc`            | Distance function for clustering and suppression. Options include `"euclidean"`, `"manhattan"`, `"cosine"`, `"minkowski"`, `"hamming"`. |
+| `affinityParams`      | A list of optional parameters for the affinity/distance functions.                                           |
+| `mutationDecay`       | Factor controlling how the mutation rate decays over iterations. Default is `1.0` (no decay).                |
+| `mutationMin`         | Minimum mutation rate to avoid zero mutation.                                                               |
+| `maxClones`           | Maximum number of clones per antibody. Default is unlimited (`Inf`).                                         |
+| `stopTolerance`       | Tolerance for stopping the algorithm if the antibody population size stabilizes.                             |
+| `noImprovementLimit`  | Number of iterations without improvement before early stopping.                                              |
+| `initMethod`          | Method for initializing antibodies. Options: `"sample"` (randomly selects rows from `X`) or `"random"` (Gaussian noise). |
+| `k`                   | Number of top-matching antibodies to consider during cloning.                                               |
+| `seed`                | Random seed for reproducibility.                                                                             |
+| `verbose`             | Logical. If `TRUE`, prints progress messages for each iteration.                                             |
+
+---
+
+### How `bHIVE` Works
+
+1. **Affinity Calculation**: Measures the similarity between each data point and antibodies using a specified `affinityFunc`.
+2. **Clonal Expansion and Mutation**: Generates clones of top-matching antibodies, introducing diversity via mutation.
+3. **Network Suppression**: Removes antibodies that are too similar to maintain diversity in the population.
+4. **Assignment**: Assigns data points to antibodies (clusters, labels, or numeric predictions).
+
+### Example of Parameter Selection
+
+The following example demonstrates how to configure the `bHIVE` function for clustering, emphasizing the impact of key parameters:
+
+```{r tidy = FALSE}
+# Load the Iris dataset
+data(iris)
+X <- as.matrix(iris[, 1:4])
+
+# Configure bHIVE parameters for clustering
+set.seed(123)
+res <- bHIVE(
+  X = X,                  # Input data
+  task = "clustering",    # Task type
+  nAntibodies = 20,       # Number of antibodies
+  beta = 5,               # Clone multiplier
+  epsilon = 0.01,         # Suppression threshold
+  maxIter = 20,           # Maximum iterations
+  affinityFunc = "gaussian",  # Affinity function
+  distFunc = "euclidean",     # Distance function
+  verbose = TRUE          # Print progress
+)
+```
+
+---
+
+# Applications
+
+## Clustering 
+
+**Clustering** is an unsupervised learning task where we group similar data points based on their features. In this example, we cluster the numeric features of the Iris dataset using `bHIVE`. 
+
+```{r tidy = FALSE}
+# Load Iris dataset
+data(iris)
+X <- as.matrix(iris[, 1:4])
+
+# Perform clustering
+set.seed(42)
+res <- bHIVE(X = X, 
+             task = "clustering", 
+             nAntibodies = 20, 
+             beta = 5, 
+             epsilon = 0.01, 
+             maxIter = 20, 
+             k = 3)
+
+# Add cluster assignments to the data
+iris$Cluster <- as.factor(res$assignments)
+
+# Visualize clusters
+ggplot(iris, aes(x = Sepal.Length, 
+                 y = Sepal.Width, 
+                 color = Cluster)) +
+    geom_point(size = 3) +
+    labs(title = "Clustering Results with bHIVE", 
+         x = "Sepal Length", 
+         y = "Sepal Width") +
+    theme_minimal()
+```
+
+## Classification
+
+**Classification** is a supervised learning task where data points are assigned to predefined categories based on their features. Here, we classify the species of Iris flowers using `bHIVE`.
+
+```{r tidy = FALSE}
+# Classification setup
+y <- iris$Species
+
+# Perform classification
+set.seed(42)
+res <- bHIVE(X = X, 
+             y = y, 
+             task = "classification", 
+             nAntibodies = 30, 
+             beta = 5, 
+             epsilon = 0.01, 
+             maxIter = 20, 
+             k = 3)
+
+# Compare predicted vs actual
+table(Predicted = res$assignments, Actual = y)
+
+# Visualize classification results
+iris$Predicted <- res$assignments
+ggplot(iris, aes(x = Sepal.Length, 
+                 y = Sepal.Width, 
+                 color = Predicted, 
+                 shape = Species)) +
+    geom_point(size = 3) +
+    labs(title = "Classification Results with bHIVE", x = "Sepal Length", y = "Sepal Width") +
+    theme_minimal()
+```
+
+## Regression
+
+**Regression** is a supervised learning task where the goal is to predict continuous numeric outcomes. In this example, we use the Boston housing dataset to predict the median home value (medv) using `bHIVE`.
+
+```{r tidy = FALSE}
+if (!requireNamespace("MASS", quietly = TRUE)) install.packages("MASS")
+library(MASS)
+data(Boston)
+X <- as.matrix(Boston[, -14])
+y <- Boston$medv
+
+# Perform regression
+set.seed(123)
+res <- bHIVE(X = X, y = y, task = "regression", nAntibodies = 50, beta = 5, epsilon = 0.01, maxIter = 20, k = 3)
+
+# Compare predicted vs actual
+cor(res$assignments, y)
+
+# Visualize regression results
+Boston$Predicted <- res$assignments
+ggplot(Boston, aes(x = y, y = Predicted)) +
+    geom_point() +
+    geom_smooth(method = "lm", color = "blue", se = FALSE) +
+    labs(title = "Regression Results with bHIVE", x = "Actual Values (medv)", y = "Predicted Values") +
+    theme_minimal()
+
+```
+
+## Hyperparameter Tuning
+
+Tuning hyperparameters is crucial for optimizing the performance of machine learning algorithms. In this example, we perform hyperparameter tuning for clustering using `swarmbHIVE`.
+
+```{r tidy = FALSE}
+grid <- expand.grid(
+    nAntibodies = c(10, 20),
+    beta = c(3, 5),
+    epsilon = c(0.01, 0.05)
+)
+
+# Perform tuning
+set.seed(123)
+tuning_results <- tune_bHIVE(X = X, task = "clustering", grid = grid, metric = "silhouette")
+
+# Best parameters
+tuning_results$best_params
+
+# Visualize tuning results
+ggplot(tuning_results$results, aes(x = nAntibodies, y = metric_value, color = factor(beta))) +
+    geom_line() +
+    geom_point(size = 3) +
+    labs(title = "Hyperparameter Tuning Results", x = "Number of Antibodies", y = "Silhouette Score", color = "Beta") +
+    theme_minimal()
+```
+
+## Using the `caret` wrapper 
+
+The `bHIVE` package provides a `caret` wrapper for seamless integration with the `caret` framework, allowing for easy cross-validation and hyperparameter tuning. Here, we demonstrate regression on the Boston housing dataset.
+
+```{r tidy = FALSE}
+# Train using caret
+train_control <- trainControl(method = "cv", number = 5)
+set.seed(123)
+model <- train(
+    x = X,
+    y = y,
+    method = bHIVEModel,
+    trControl = train_control,
+    tuneGrid = expand.grid(
+        nAntibodies = c(10, 20),
+        beta = c(3, 5),
+        epsilon = c(0.01, 0.05)
+    )
+)
+
+# Visualize caret results
+ggplot(model) +
+    labs(title = "Caret Tuning Results for bHIVE", x = "Hyperparameter Combination", y = "Performance Metric")
+```
+
+# Conclusions
+
+The `bHIVE` package is a versatile tool for clustering, classification, and regression tasks. Its integration with caret simplifies hyperparameter tuning and cross-validation, making it suitable for a variety of datasets and use cases. If you have any questions, comments, or suggestions, please visit the [GitHub repository](https://github.com/ncborcherding/bHIVE).
+
+```{r}
+sessionInfo()
+```

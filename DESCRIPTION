@@ -1,5 +1,5 @@
 Package: bHIVE
-Title: Artificial Immune Network for Clustering, Classification, and Regression
+Title: B-cell-based Hybrid Immune Virtual Evolution 
 Version: 0.99.0
 Authors@R: c(
     person(given = "Nick", family = "Borcherding", role = c("aut", "cre"), email = "ncborch@gmail.com"))
@@ -17,11 +17,14 @@ Imports:
     stats,
     utils,
     methods
-Suggests: 
-    testthat (>= 3.0.0),
+Suggests:
+    caret, 
     devtools,
+    ggplot2, 
     knitr,
-    rmarkdown
+    rmarkdown,
+    spelling,
+    testthat (>= 3.0.0),
 VignetteBuilder: knitr
 Config/testthat/edition: 3
 Language: en-US
