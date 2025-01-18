@@ -111,7 +111,8 @@ res <- bHIVE(X = X,
              beta = 5, 
              epsilon = 0.05, 
              maxIter = 20, 
-             k = 3)
+             k = 3,
+             verbose = FALSE)
 
 # Add cluster assignments to the data
 iris$Cluster <- as.factor(res$assignments)
@@ -144,7 +145,8 @@ res <- bHIVE(X = X,
              beta = 5, 
              epsilon = 0.01, 
              maxIter = 20, 
-             k = 3)
+             k = 3,
+             verbose = FALSE)
 
 # Compare predicted vs actual
 table(Predicted = res$assignments, Actual = y)
@@ -176,11 +178,12 @@ set.seed(42)
 res <- bHIVE(X = X, 
              y = y, 
              task = "regression", 
-             nAntibodies = 40, 
+             nAntibodies = 50, 
              beta = 5, 
              epsilon = 0.01, 
-             maxIter = 20, 
-             k = 3,)
+             maxIter = 30, 
+             k = 3,
+             verbose = FALSE)
 
 # Compare predicted vs actual
 cor(res$assignments, y)
@@ -211,7 +214,8 @@ set.seed(42)
 tuning_results <- swarmbHIVE(X = X, 
                              task = "clustering", 
                              grid = grid, 
-                             metric = "silhouette")
+                             metric = "silhouette",
+                             verbose = FALSE)
 
 # Best parameters
 tuning_results$best_params
@@ -230,17 +234,17 @@ The `bHIVE` package provides a `caret` wrapper for seamless integration with the
 
 ```{r tidy = FALSE}
 # Train using caret
-train_control <- trainControl(method = "cv", number = 5)
+train_control <- trainControl(method = "cv", number = 2)
 set.seed(42)
 model <- train(x = X,
                y = y,
-               method = bHIVEModel,
+               method = bHIVEmodel,
                trControl = train_control,
                tuneGrid = expand.grid(
                     nAntibodies = c(10, 20),
                     beta = c(3, 5),
-                    epsilon = c(0.01, 0.05)
-                )
+                    epsilon = c(0.01, 0.05)),
+                verbose = FALSE
 )
 
 # Visualize caret results

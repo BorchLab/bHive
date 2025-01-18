@@ -184,9 +184,14 @@ bHIVE <- function(X,
       # 1) Compute affinity to all antibodies
       aff_values <- apply(A, 1, function(a) affFn(x, a, affinityParams))
       
+      # Handle edge case where all affinity values are zero or undefined
+      max_aff <- max(aff_values, na.rm = TRUE)
+      if (max_aff == 0 || is.na(max_aff)) {
+        next  # Skip this data point as no meaningful affinity is found
+      }
+      
       # 2) Identify the top k matching antibodies
-      top_idx <- order(aff_values, decreasing = TRUE)[1:k]
-      max_aff <- max(aff_values)
+      top_idx <- order(aff_values, decreasing = TRUE)[seq_len(min(k, length(aff_values)))]
       
       # 3) Clone and mutate top k
       for (j in top_idx) {

@@ -87,9 +87,9 @@
 #'
 #' @export
 bHIVEmodel <- list(
-  label = "B-cell-based Hybrid Immune Virtual Evolution",
-  library = "customPackage",
-  type = c("Classification", "Regression"),
+  label = "Artificial Immune Network (bHIVE)",
+  library = "bHIVE",
+  type = c("Regression", "Classification", "Clustering"),
   parameters = data.frame(
     parameter = c("nAntibodies", "beta", "epsilon"),
     class = c("numeric", "numeric", "numeric"),
@@ -103,25 +103,40 @@ bHIVEmodel <- list(
     )
   },
   fit = function(x, y, wts, param, lev, last, classProbs, ...) {
-    bHIVE_with_clustering(
+    bHIVE(
       X = x,
       y = y,
+      task = if (is.factor(y)) "classification" else if (is.numeric(y)) "regression" else "clustering",
       nAntibodies = param$nAntibodies,
       beta = param$beta,
       epsilon = param$epsilon,
-      task = if (is.factor(y)) "classification" else "regression",
       ...
     )
   },
   predict = function(modelFit, newdata, submodels = NULL) {
-    predictions <- predict_bHIVE(modelFit, newdata)
-    if (modelFit$task == "classification") {
-      factor(predictions, levels = modelFit$obsLevels)
+    # Extract the 'assignments' from the modelFit object
+    if ("assignments" %in% names(modelFit)) {
+      predictions <- apply(newdata, 1, function(row) {
+        # Find the closest antibody for clustering/classification/regression
+        distances <- apply(modelFit$antibodies, 1, function(a) {
+          sum((row - a)^2)  # Euclidean distance
+        })
+        closest <- which.min(distances)
+        if (modelFit$task == "classification") {
+          return(modelFit$assignments[closest])
+        } else if (modelFit$task == "regression") {
+          return(modelFit$assignments[closest])
+        } else {
+          return(closest)
+        }
+      })
     } else {
-      predictions
+      stop("Invalid model object: missing 'assignments'")
     }
+    
+    return(predictions)
   },
   prob = function(modelFit, newdata, submodels = NULL) {
-    predict_bHIVE(modelFit, newdata, type = "prob")
+    stop("Probabilities are not supported for this model.")
   }
 )
