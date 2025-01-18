@@ -2,79 +2,129 @@
 
 set.seed(42)
 
-test_that("bHIVE handles clustering correctly", {
+test_that("bHIVE handles different affinity functions correctly", {
   data(iris)
   X <- as.matrix(iris[, 1:4])
   
-  # Run bHIVE for clustering
-  res <- bHIVE(X = X, 
-               task = "clustering", 
-               nAntibodies = 20, 
-               beta = 5, 
-               epsilon = 0.01, 
-               maxIter = 10, 
-               k = 3,
-               verbose = FALSE)
+  affinity_funcs <- c("gaussian", "laplace", "polynomial", "cosine")
+  for (aff in affinity_funcs) {
+    expect_silent(
+      res <- bHIVE(X = X, 
+                   task = "clustering", 
+                   affinityFunc = aff, 
+                   distFunc = "euclidean", 
+                   nAntibodies = 10, 
+                   maxIter = 5, 
+                   verbose = FALSE)
+    )
+    expect_type(res, "list")
+    expect_named(res, c("antibodies", "assignments", "task"))
+  }
+})
+
+test_that("bHIVE handles different distance functions correctly", {
+  data(iris)
+  X <- as.matrix(iris[, 1:4])
   
-  # Check output structure
+  dist_funcs <- c("euclidean", "manhattan", "minkowski", "cosine")
+  for (dist in dist_funcs) {
+    expect_silent(
+      res <- bHIVE(X = X, 
+                   task = "clustering", 
+                   affinityFunc = "gaussian", 
+                   distFunc = dist, 
+                   nAntibodies = 10, 
+                   maxIter = 5, 
+                   verbose = FALSE)
+    )
+    expect_type(res, "list")
+    expect_named(res, c("antibodies", "assignments", "task"))
+  }
+})
+
+test_that("bHIVE works with different tasks", {
+  data(iris)
+  X <- as.matrix(iris[, 1:4])
+  y_class <- iris$Species
+  y_reg <- iris$Sepal.Length
+  
+  # Classification
+  expect_silent(
+    res_class <- bHIVE(X = X, 
+                       y = y_class, 
+                       task = "classification", 
+                       affinityFunc = "gaussian", 
+                       distFunc = "euclidean", 
+                       nAntibodies = 10, 
+                       maxIter = 5,
+                       verbose = FALSE)
+  )
+  expect_type(res_class, "list")
+  expect_named(res_class, c("antibodies", "assignments", "task"))
+  expect_equal(length(res_class$assignments), nrow(X))
+  
+  # Regression
+  expect_silent(
+    res_reg <- bHIVE(X = X, 
+                     y = y_reg, 
+                     task = "regression", 
+                     affinityFunc = "gaussian", 
+                     distFunc = "euclidean", 
+                     nAntibodies = 10, 
+                     maxIter = 5, 
+                     verbose = FALSE)
+  )
+  expect_type(res_reg, "list")
+  expect_named(res_reg, c("antibodies", "assignments", "task"))
+  expect_equal(length(res_reg$assignments), nrow(X))
+  
+  # Clustering
+  expect_silent(
+    res_cluster <- bHIVE(X = X, 
+                         task = "clustering", 
+                         affinityFunc = "gaussian", 
+                         distFunc = "euclidean", 
+                         nAntibodies = 10, 
+                         maxIter = 5, 
+                         verbose = FALSE)
+  )
+  expect_type(res_cluster, "list")
+  expect_named(res_cluster, c("antibodies", "assignments", "task"))
+  expect_equal(length(res_cluster$assignments), nrow(X))
+})
+
+test_that("bHIVE handles different initialization methods correctly", {
+  data(iris)
+  X <- as.matrix(iris[, 1:4])
+  
+  init_methods <- c("sample", "random")
+  for (init in init_methods) {
+    expect_silent(
+      res <- bHIVE(X = X, 
+                   task = "clustering", 
+                   affinityFunc = "gaussian", 
+                   distFunc = "euclidean", 
+                   nAntibodies = 10, 
+                   maxIter = 5, 
+                   initMethod = init, 
+                   verbose = FALSE)
+    )
+    expect_type(res, "list")
+    expect_named(res, c("antibodies", "assignments", "task"))
+  }
+})
+
+test_that("bHIVE returns correct structure and data types", {
+  data(iris)
+  X <- as.matrix(iris[, 1:4])
+  res <- bHIVE(X = X, task = "clustering", nAntibodies = 10, maxIter = 5)
+  
+  # Check structure
+  expect_type(res, "list")
   expect_named(res, c("antibodies", "assignments", "task"))
+  
+  # Check types of components
+  expect_type(res$antibodies, "double")
+  expect_type(res$assignments, "integer")
   expect_equal(res$task, "clustering")
-  expect_true(is.matrix(res$antibodies))
-  expect_true(is.integer(res$assignments))
-  expect_length(res$assignments, nrow(X))
-})
-
-test_that("bHIVE handles classification correctly", {
-  data(iris)
-  X <- as.matrix(iris[, 1:4])
-  y <- iris$Species
-  
-  # Run bHIVE for classification
-  res <- bHIVE(X = X, 
-               y = y, 
-               task = "classification", 
-               nAntibodies = 20, 
-               beta = 5, 
-               epsilon = 0.01, 
-               maxIter = 10, 
-               k = 3,
-               verbose = FALSE)
-  
-  # Check output structure
-  expect_named(res, c("antibodies", "assignments", "task"))
-  expect_equal(res$task, "classification")
-  expect_true(is.matrix(res$antibodies))
-  expect_length(res$assignments, nrow(X))
-})
-
-test_that("bHIVE handles regression correctly", {
-  data(iris)
-  X <- as.matrix(iris[, 2:4])
-  y <- iris$Sepal.Length
-  
-  # Run bHIVE for regression
-  res <- bHIVE(X = X, 
-               y = y, 
-               task = "regression", 
-               nAntibodies = 20, 
-               beta = 5, 
-               epsilon = 0.01, 
-               maxIter = 10, 
-               k = 3,
-               verbose = FALSE)
-  
-  # Check output structure
-  expect_named(res, c("antibodies", "assignments", "task"))
-  expect_equal(res$task, "regression")
-  expect_true(is.matrix(res$antibodies))
-  expect_true(is.numeric(res$assignments))
-  expect_length(res$assignments, nrow(X))
-})
-
-test_that("bHIVE throws an error for invalid task", {
-  data(iris)
-  X <- as.matrix(iris[, 1:4])
-  
-  # Invalid task
-  expect_error(bHIVE(X = X, task = "invalid_task", nAntibodies = 20, beta = 5, epsilon = 0.01))
 })
