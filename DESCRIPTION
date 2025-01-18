@@ -16,10 +16,12 @@ Imports:
     magrittr,
     stats
 Suggests:
+    BiocStyle,
     caret, 
     devtools,
     ggplot2, 
     knitr,
+    MASS,
     rmarkdown,
     spelling,
     testthat (>= 3.0.0),

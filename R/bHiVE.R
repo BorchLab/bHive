@@ -277,10 +277,25 @@ bHIVE <- function(X,
     })
     assignments <- predicted_labels
   } else if (task == "regression") {
-    antibody_values <- runif(nAntibodies, min(y), max(y)) # Random initial values
+    # Assign random initial values to antibodies
+    antibody_values <- runif(nAntibodies, min(y), max(y))
+    
+    # Update regression predictions
     predicted_values <- apply(X, 1, function(x) {
+      # Calculate affinities for all antibodies
       affinities <- apply(A, 1, function(a) distFn(x, a, affinityParams))
-      sum(affinities * antibody_values) / sum(affinities)
+      
+      # Align lengths dynamically
+      if (length(affinities) != length(antibody_values)) {
+        antibody_values <- antibody_values[seq_along(affinities)]
+      }
+      
+      # Compute weighted sum of predictions
+      if (sum(affinities) == 0) {
+        return(mean(antibody_values))  # Handle edge case where all affinities are zero
+      } else {
+        return(sum(affinities * antibody_values) / sum(affinities))
+      }
     })
     assignments <- predicted_values
   }

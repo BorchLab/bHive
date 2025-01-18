@@ -158,7 +158,9 @@ ggplot(iris, aes(x = Sepal.Length,
                  color = Predicted, 
                  shape = Species)) +
     geom_point(size = 3) +
-    labs(title = "Classification Results with bHIVE", x = "Sepal Length", y = "Sepal Width") +
+    labs(title = "Classification Results with bHIVE", 
+         x = "Sepal Length", 
+         y = "Sepal Width") +
     theme_minimal()
 ```
 
@@ -193,7 +195,9 @@ Boston$Predicted <- res$assignments
 ggplot(Boston, aes(x = y, y = Predicted)) +
     geom_point() +
     geom_smooth(method = "lm", color = "blue", se = FALSE) +
-    labs(title = "Regression Results with bHIVE", x = "Actual Values (medv)", y = "Predicted Values") +
+    labs(title = "Regression Results with bHIVE", 
+         x = "Actual Values (medv)", 
+         y = "Predicted Values") +
     theme_minimal()
 
 ```
@@ -224,7 +228,10 @@ tuning_results$best_params
 ggplot(tuning_results$results, aes(x = nAntibodies, y = metric_value, color = factor(beta))) +
     geom_line() +
     geom_point(size = 3) +
-    labs(title = "Hyperparameter Tuning Results", x = "Number of Antibodies", y = "Silhouette Score", color = "Beta") +
+    labs(title = "Hyperparameter Tuning Results", 
+         x = "Number of Antibodies", 
+         y = "Silhouette Score", 
+         color = "Beta") +
     theme_minimal()
 ```
 

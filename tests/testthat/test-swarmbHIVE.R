@@ -33,7 +33,12 @@ test_that("swarmbHIVE works for classification", {
   )
   
   # Tune hyperparameters
-  res <- swarmbHIVE(X = X, y = y, task = "classification", grid = grid, metric = "accuracy", verbose = FALSE)
+  res <- swarmbHIVE(X = X, 
+                    y = y, 
+                    task = "classification", 
+                    grid = grid, 
+                    metric = "accuracy", 
+                    verbose = FALSE)
   
   # Check results structure
   expect_named(res, c("best_params", "results"))
@@ -54,7 +59,12 @@ test_that("swarmbHIVE works for regression", {
   )
   
   # Tune hyperparameters
-  res <- swarmbHIVE(X = X, y = y, task = "regression", grid = grid, metric = "rmse", verbose = FALSE)
+  res <- swarmbHIVE(X = X, 
+                    y = y, 
+                    task = "regression", 
+                    grid = grid, 
+                    metric = "rmse", 
+                    verbose = FALSE)
   
   # Check results structure
   expect_named(res, c("best_params", "results"))
