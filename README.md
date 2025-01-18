@@ -45,6 +45,8 @@ The algorithm operates in the following steps:
 
 4. **Assignment**: Data points are assigned to antibodies using affinity (for classification/regression) or distance (for clustering).
 
+<img align="center" src="https://github.com/ncborcherding/bHive/blob/main/www/iterativeGraphic.png">
+
 ## Installation
 
 To install the **bHIVE** from GitHub, use:
