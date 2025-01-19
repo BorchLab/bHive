@@ -20,7 +20,6 @@
 #'     \item \code{"silhouette"}: For clustering tasks.
 #'   }
 #' @param verbose Logical. If \code{TRUE}, prints progress messages.
-#' @param seed Integer. Random seed for reproducibility.
 #'
 #' @return A list containing:
 #'   \itemize{
@@ -55,9 +54,11 @@
 #' @importFrom cluster silhouette
 #' @importFrom stats dist
 #' @export
-swarmbHIVE <- function(X, y = NULL, task = "clustering", grid, metric = "silhouette", verbose = TRUE, seed = NULL) {
-  # Set random seed
-  if (!is.null(seed)) set.seed(seed)
+swarmbHIVE <- function(X, 
+                       y = NULL, 
+                       task = "clustering", 
+                       grid, metric = "silhouette", 
+                       verbose = TRUE) {
   
   # Validate task
   if (!task %in% c("clustering", "classification", "regression")) {
