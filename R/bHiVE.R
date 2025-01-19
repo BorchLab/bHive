@@ -1,58 +1,72 @@
 #' bHIVE: B-cell-based Hybrid Immune Virtual Evolution 
 #'
 #' Implements an artificial immune network algorithm for clustering, classification, 
-#' and regression tasks. The algorithm evolves a population of "antibodies" via clonal 
-#' selection and mutation, applies network suppression to maintain diversity, and assigns
-#' data points based on affinity or distance metrics.
+#' and regression tasks. The algorithm evolves a population of "antibodies" 
+#' via clonal selection and mutation, applies network suppression to maintain 
+#' diversity, and assigns data points based on affinity or distance metrics.
 #'
-#' @param X A numeric matrix or data frame of input features, with rows as observations 
+#' @param X A numeric matrix or data frame of input features, with rows as 
+#' observations 
 #'   and columns as features.
-#' @param y Optional. A target vector. Use for classification (factor) or regression (numeric).
+#' @param y Optional. A target vector. Use for classification (factor) or 
+#' regression (numeric).
 #'   If NULL, clustering will be performed.
-#' @param task Character. Specifies the task to perform: \code{"clustering"}, \code{"classification"}, 
-#'   or \code{"regression"}. If NULL, it is inferred based on \code{y}.
+#' @param task Character. Specifies the task to perform: \code{"clustering"}, 
+#' \code{"classification"}, or \code{"regression"}. If NULL, it is inferred based on \code{y}.
 #' @param nAntibodies Integer. The initial population size of antibodies. 
-#' @param beta Numeric. Clone multiplier (controls how many clones are generated for top-matching antibodies).
-#' @param epsilon Numeric. Similarity threshold used in network suppression; antibodies closer
-#'   than \code{epsilon} are considered redundant.
-#' @param maxIter Integer. Maximum number of iterations to run the AI-Net algorithm.
-#' @param affinityFunc Character. Specifies the affinity (similarity) function to use for
-#'   antibody-data matching. One of \code{"gaussian"}, \code{"laplace"}, \code{"polynomial"}, 
-#'   \code{"cosine"}, or \code{"hamming"}.
-#' @param distFunc Character. Specifies the distance function for clustering and suppression. 
-#'   One of \code{"euclidean"}, \code{"manhattan"}, \code{"minkowski"}, 
-#'   \code{"cosine"}, \code{"mahalanobis"}, or \code{"hamming"}.
-#' @param affinityParams A list of optional parameters for the chosen affinity or distance function.
+#' @param beta Numeric. Clone multiplier (controls how many clones are 
+#' generated for top-matching antibodies).
+#' @param epsilon Numeric. Similarity threshold used in network suppression; 
+#' antibodies closer than \code{epsilon} are considered redundant.
+#' @param maxIter Integer. Maximum number of iterations to run the AI-Net 
+#' algorithm.
+#' @param affinityFunc Character. Specifies the affinity (similarity) function 
+#' to use for antibody-data matching. One of \code{"gaussian"}, \code{"laplace"}, 
+#' \code{"polynomial"}, \code{"cosine"}, or \code{"hamming"}.
+#' @param distFunc Character. Specifies the distance function for clustering 
+#' and suppression. One of \code{"euclidean"}, \code{"manhattan"}, 
+#' \code{"minkowski"}, \code{"cosine"}, \code{"mahalanobis"}, 
+#' or \code{"hamming"}.
+#' @param affinityParams A list of optional parameters for the chosen affinity 
+#' or distance function.
 #'   \itemize{
 #'     \item \code{alpha} (for RBF or Laplace kernel),
 #'     \item \code{c}, \code{p} (for polynomial kernel or Minkowski distance),
 #'     \item \code{Sigma} (for Mahalanobis distance).
 #'   }
-#' @param mutationDecay Numeric. Factor by which the mutation rate decays each iteration 
-#'   (should be \eqn{\le 1.0}). Default is 1.0 (no decay).
-#' @param mutationMin Numeric. Minimum mutation rate, preventing the mutation scale from 
-#'   shrinking to zero. 
-#' @param maxClones Numeric. Maximum number of clones per top-matching antibody; defaults to \code{Inf}.
-#' @param stopTolerance Numeric. If the change in the number of antibodies (repertoire size)
-#'   is \eqn{\le stopTolerance} for consecutive iterations, this may trigger the 
-#'   \code{noImprovementLimit}.
-#' @param noImprovementLimit Integer. Stops the algorithm early if there is no further
-#'   improvement in antibody count (beyond \code{stopTolerance}) for this many consecutive
-#'   iterations. Default is \code{Inf}, meaning no early stop based on improvement.
+#' @param mutationDecay Numeric. Factor by which the mutation rate decays each 
+#' iteration (should be \eqn{\le 1.0}). Default is 1.0 (no decay).
+#' @param mutationMin Numeric. Minimum mutation rate, preventing the mutation 
+#' scale from shrinking to zero. 
+#' @param maxClones Numeric. Maximum number of clones per top-matching antibody;
+#'  defaults to \code{Inf}.
+#' @param stopTolerance Numeric. If the change in the number of antibodies 
+#' (repertoire size) is \eqn{\le stopTolerance} for consecutive iterations, 
+#' this may trigger the \code{noImprovementLimit}.
+#' @param noImprovementLimit Integer. Stops the algorithm early if there is no 
+#' further improvement in antibody count (beyond \code{stopTolerance}) for this
+#' many consecutive iterations. Default is \code{Inf}, meaning no early stop 
+#' based on improvement.
 #' @param initMethod Character. Method for initializing antibodies. Can be:
 #'   \itemize{
-#'     \item \code{"sample"} - randomly selects rows from \code{X} as initial antibodies.
-#'     \item \code{"random"} - samples Gaussian noise using \code{X}'s column means/sds.
+#'     \item \code{"sample"} - randomly selects rows from \code{X} as initial 
+#'     antibodies.
+#'     \item \code{"random"} - samples Gaussian noise using \code{X}'s column 
+#'     means/sds.
 #'   }
-#' @param k Integer. Number of top-matching antibodies (by affinity) to consider cloning for each data point.
-#' @param verbose Logical. If \code{TRUE}, prints progress messages each iteration.
+#' @param k Integer. Number of top-matching antibodies (by affinity) to 
+#' consider cloning for each data point.
+#' @param verbose Logical. If \code{TRUE}, prints progress messages each 
+#' iteration.
 #'
 #' @return A list containing:
 #'   \itemize{
-#'     \item \code{antibodies}: A matrix of the final antibody vectors in the repertoire.
-#'     \item \code{assignments}: Cluster assignments (for clustering), predicted labels (classification), 
-#'       or predicted values (regression).
-#'     \item \code{task}: The type of task performed (\code{"clustering"}, \code{"classification"}, \code{"regression"}).
+#'     \item \code{antibodies}: A matrix of the final antibody vectors in the 
+#'     repertoire.
+#'     \item \code{assignments}: Cluster assignments (for clustering), predicted
+#'      labels (classification), or predicted values (regression).
+#'     \item \code{task}: The type of task performed (\code{"clustering"}, 
+#'     \code{"classification"}, \code{"regression"}).
 #'   }
 #'
 #' @examples
@@ -135,7 +149,8 @@ bHIVE <- function(X,
   
   # Validate task input
   if (!task %in% c("clustering", "classification", "regression")) {
-    stop("Invalid task. Choose from 'clustering', 'classification', or 'regression'.")
+    stop("Invalid task. Choose from 'clustering', 'classification', or 
+         'regression'.")
   }
   
   # Match initialization method
@@ -149,13 +164,15 @@ bHIVE <- function(X,
   } else {
     xMean <- colMeans(X)
     xSd <- apply(X, 2, sd) + 1e-8
-    A <- matrix(rnorm(nAntibodies * d, mean = 0, sd = 1), nrow = nAntibodies, ncol = d)
+    A <- matrix(rnorm(nAntibodies * d, mean = 0, sd = 1), 
+                nrow = nAntibodies, ncol = d)
     A <- sweep(A, 2, xSd, `*`)  # Scale by column SD
     A <- sweep(A, 2, xMean, `+`) # Shift by column mean
   }
   
   # Ensure A is not empty
-  if (nrow(A) == 0) stop("Initialization failed. Ensure `nAntibodies` and `X` are compatible.")
+  if (nrow(A) == 0) stop("Initialization failed. Ensure `nAntibodies` 
+                         and `X` are compatible.")
   
   # Select affinity and distance functions
   affFn <- switch(
@@ -228,7 +245,8 @@ bHIVE <- function(X,
     
     # Ensure A is not empty after suppression
     if (nrow(A) == 0) {
-      stop("All antibodies were suppressed. Adjust `epsilon` or `nAntibodies` to ensure a viable population.")
+      stop("All antibodies were suppressed. Adjust `epsilon` or 
+           `nAntibodies` to ensure a viable population.")
     }
     
     # Check for convergence or early stopping
@@ -244,7 +262,8 @@ bHIVE <- function(X,
     
     if (noImprovementCount >= noImprovementLimit) {
       if (verbose) {
-        cat("Early stopping due to no improvement for", noImprovementCount, "iterations.\n")
+        cat("Early stopping due to no improvement for", noImprovementCount, 
+            "iterations.\n")
       }
       break
     }

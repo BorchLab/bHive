@@ -75,6 +75,7 @@
 #' head(resReg[[3]]$membership)
 #' head(resReg[[3]]$predictions)
 #'
+#' @importFrom stats median
 #' @export
 honeycombHIVE <- function(X,
                           y = NULL,
@@ -95,80 +96,65 @@ honeycombHIVE <- function(X,
   
   .validate_bHIVE_input(X, y)
   
-  # Convert to data.frame for uniform handling
   X <- as.data.frame(X)
   n_original <- nrow(X)
   
-  # Ensure row names
   if (is.null(rownames(X))) {
     rownames(X) <- paste0("row_", seq_len(n_original))
   }
   
-  # rowIndices[[row_name]] = integer vector of the original row indices that formed this row
   rowIndices <- lapply(seq_len(n_original), function(i) i)
   names(rowIndices) <- rownames(X)
   
   current_X <- X
-  if (!is.null(y)) {
-    current_y <- y
-  } else {
-    current_y <- NULL
-  }
+  current_y <- if (!is.null(y)) y else NULL
   
   results <- vector("list", length = layers)
+  
+  dots <- list(...) # Capture the ellipsis arguments
   
   for (layer in seq_len(layers)) {
     if (verbose) {
       cat(sprintf("\n=== Running layer %d / %d (task = %s) ===\n", layer, layers, task))
     }
     
-    # Adjust number of antibodies
     nAntibodies_layer <- min(nAntibodies, max(minAntibodies, nrow(current_X)))
     
-    # Run bHIVE on the *current* data
-    res_layer <- bHIVE(X           = current_X,
-                       y           = current_y,
-                       task        = task,
+    # Pass arguments to bHIVE explicitly, handling potential NULLs
+    bHIVE_args <- list(X = current_X,
+                       y = current_y,
+                       task = task,
                        nAntibodies = nAntibodies_layer,
-                       epsilon     = epsilon,
-                       beta        = beta,
-                       maxIter     = maxIter,
-                       verbose     = verbose,
-                       ...)
+                       epsilon = epsilon,
+                       beta = beta,
+                       maxIter = maxIter,
+                       verbose = verbose)
     
-    # We'll create a membership vector for all original rows
+    # Add any extra arguments from dots, excluding those already specified
+    extra_args <- dots[!names(dots) %in% names(bHIVE_args)]
+    bHIVE_args <- c(bHIVE_args, extra_args)
+    
+    res_layer <- do.call(bHIVE, bHIVE_args) # Use do.call to pass the named list
+    
     membership <- rep(NA, n_original)
-    
-    # "assignments" is the cluster index for each row in current_X
     cluster_ids <- res_layer$assignments
     unique_clusters <- unique(cluster_ids)
     
-    # Group row names of current_X by cluster assignment
     subsets_rownames <- split(rownames(current_X), f = cluster_ids)
     
-    # Prepare to build new prototypes (antibodies) and new rowIndices after collapse
     new_rowIndices <- list()
     cluster_counter <- 1
-    
-    # For classification/regression, we'll store predictions for the *current layer data*
-    # i.e., one label/value per row in current_X
     predictions_this_layer <- rep(NA, nrow(current_X))
     
     for (cid in unique_clusters) {
-      # The row names in current_X belonging to cluster cid
       rn_in_cluster <- subsets_rownames[[as.character(cid)]]
-      
-      # Combine the original row indices from each
       orig_indices <- unlist(rowIndices[rn_in_cluster], use.names = FALSE)
-      
-      # Mark membership for those original rows
       membership[orig_indices] <- cluster_counter
       
-      # Collapsing method
       sub_data <- current_X[rn_in_cluster, , drop = FALSE]
+      
       if (nrow(sub_data) == 0) {
-        # fallback
-        proto <- colMeans(current_X, na.rm = TRUE)
+        proto <- rep(NA, ncol(current_X))
       } else {
         proto <- switch(
           collapseMethod,
@@ -188,38 +174,30 @@ honeycombHIVE <- function(X,
         )
       }
       
-      # If classification or regression, define the label/target for this prototype
-      if (task == "classification") {
-        # majority vote among sub_data's indices in current_y
-        if (!is.null(current_y)) {
-          idx_in_current <- match(rn_in_cluster, rownames(current_X))
-          if (length(idx_in_current) > 0) {
-            y_vals <- current_y[idx_in_current]
-            tb <- table(y_vals)
-            class_pred <- names(tb)[which.max(tb)]
-            predictions_this_layer[idx_in_current] <- class_pred
-          }
+      if (task == "classification" && !is.null(current_y)) {
+        idx_in_current <- match(rn_in_cluster, rownames(current_X))
+        if (length(idx_in_current) > 0) {
+          y_vals <- current_y[idx_in_current]
+          tb <- table(y_vals)
+          class_pred <- names(tb)[which.max(tb)]
+          predictions_this_layer[idx_in_current] <- class_pred
         }
-      } else if (task == "regression") {
-        # mean target among sub_data's indices
-        if (!is.null(current_y)) {
-          idx_in_current <- match(rn_in_cluster, rownames(current_X))
-          if (length(idx_in_current) > 0) {
-            val_pred <- mean(current_y[idx_in_current], na.rm = TRUE)
-            predictions_this_layer[idx_in_current] <- val_pred
-          }
+      } else if (task == "regression" && !is.null(current_y)) {
+        idx_in_current <- match(rn_in_cluster, rownames(current_X))
+        if (length(idx_in_current) > 0) {
+          val_pred <- mean(current_y[idx_in_current], na.rm = TRUE)
+          predictions_this_layer[idx_in_current] <- val_pred
         }
       }
       
-      # Build a new row name for this cluster
       new_row_name <- paste0("Layer", layer, "_Cluster", cluster_counter)
       new_rowIndices[[new_row_name]] <- orig_indices
       
       if (cluster_counter == 1) {
-        proto_matrix <- matrix(proto, nrow=1)
+        proto_matrix <- matrix(proto, nrow = 1)
         rownames(proto_matrix) <- new_row_name
       } else {
-        temp <- matrix(proto, nrow=1)
+        temp <- matrix(proto, nrow = 1)
         rownames(temp) <- new_row_name
         proto_matrix <- rbind(proto_matrix, temp)
       }
@@ -227,13 +205,11 @@ honeycombHIVE <- function(X,
       cluster_counter <- cluster_counter + 1
     }
     
-    # Possibly discard small clusters
     if (!is.null(minClusterSize)) {
-      # Check how many original points are in each new cluster
       keep_idx <- sapply(new_rowIndices, length) >= minClusterSize
       if (any(!keep_idx)) {
         if (verbose) {
-          cat(sprintf("Discarding %d clusters smaller than minClusterSize (%d)\n",
+          cat(sprintf("Discarding %d clusters smaller than minClusterSize (%d)\n", 
                       sum(!keep_idx), minClusterSize))
         }
         proto_matrix <- proto_matrix[keep_idx, , drop = FALSE]
@@ -241,48 +217,33 @@ honeycombHIVE <- function(X,
       }
     }
     
-    # Build a data.frame from proto_matrix for the next layer
-    new_data <- as.data.frame(proto_matrix)
+    if (nrow(proto_matrix) == 0) {
+      stop("No valid prototypes generated. Please check parameters and input data.")
+    }
     
-    # Update current_X to these new prototypes
+    new_data <- as.data.frame(proto_matrix)
     current_X <- new_data
-    # Update rowIndices
     rowIndices <- new_rowIndices
     
-    # For classification/regression, store predictions for the *current layer's data*
-    if (task %in% c("classification","regression")) {
+    if (task %in% c("classification", "regression")) {
       res_layer$predictions <- predictions_this_layer
     }
     
-    # Store membership (length = n_original) with the cluster ID each original row belongs to
     res_layer$membership <- membership
-    
-    # Save the updated layer result
     results[[layer]] <- res_layer
     
-    # Reporting
     if (verbose) {
-      cat(sprintf("Layer %d completed. Next layer has %d data points.\n",
-                  layer, nrow(current_X)))
-      cat(sprintf("Layer %d used %d antibodies.\n",
-                  layer, nAntibodies_layer))
+      cat(sprintf("Layer %d completed. Next layer has %d data points.\n", layer, nrow(current_X)))
     }
     
-    # If all data was discarded, reinitialize if more layers remain
     if (nrow(current_X) == 0 && layer < layers) {
-      warning("No valid clusters remain after layer ", layer,
-              ". Reinitializing with original dataset.\n")
+      warning("No valid clusters remain after layer ", layer, ". Reinitializing with original dataset.\n")
       current_X <- X
       rowIndices <- lapply(seq_len(n_original), function(i) i)
       names(rowIndices) <- rownames(X)
       if (!is.null(y)) current_y <- y
     } else {
-      # Update the target for the next layer if classification/regression
-      # We'll assign the predicted label/value of each cluster's prototype
-      # as the new_y for the next iteration:
       if (task == "classification" && !is.null(current_y)) {
-        # For each new row in current_X, compute the single label
-        # from the cluster that formed it:
         new_y <- rep(NA, nrow(current_X))
         nrn <- rownames(current_X)
         for (k in seq_along(nrn)) {
@@ -292,9 +253,7 @@ honeycombHIVE <- function(X,
           new_y[k] <- names(tb)[which.max(tb)]
         }
         current_y <- new_y
-      }
-      else if (task == "regression" && !is.null(current_y)) {
-        # For each new row in current_X, define the numeric label as the mean among old points
+      } else if (task == "regression" && !is.null(current_y)) {
         new_y <- rep(NA, nrow(current_X))
         nrn <- rownames(current_X)
         for (k in seq_along(nrn)) {

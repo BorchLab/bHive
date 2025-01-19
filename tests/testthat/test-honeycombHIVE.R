@@ -6,7 +6,13 @@ test_that("honeycombHIVE runs successfully for clustering task", {
   X <- as.matrix(iris[, 1:4])
   
   # Run honeycombHIVE for clustering
-  res <- honeycombHIVE(X = X, task = "clustering", layers = 3, nAntibodies = 15, beta = 5, maxIter = 5)
+  res <- honeycombHIVE(X = X, 
+                       task = "clustering", 
+                       layers = 3, 
+                       nAntibodies = 15, 
+                       beta = 5, 
+                       maxIter = 5,
+                       verbose = FALSE)
   
   # Test structure and results
   expect_type(res, "list")
@@ -33,7 +39,8 @@ test_that("honeycombHIVE runs successfully for classification task", {
                        layers = 2, 
                        nAntibodies = 10, 
                        beta = 3, 
-                       maxIter = 5)
+                       maxIter = 5, 
+                       verbose = FALSE)
   
   # Test structure and results
   expect_type(res, "list")
