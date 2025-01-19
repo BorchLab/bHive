@@ -10,8 +10,7 @@ swarmbHIVE(
   task = "clustering",
   grid,
   metric = "silhouette",
-  verbose = TRUE,
-  seed = NULL
+  verbose = TRUE
 )
 }
 \arguments{
@@ -36,8 +35,6 @@ Options are:
 }}
 
 \item{verbose}{Logical. If \code{TRUE}, prints progress messages.}
-
-\item{seed}{Integer. Random seed for reproducibility.}
 }
 \value{
 A list containing:
