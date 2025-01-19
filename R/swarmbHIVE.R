@@ -4,15 +4,20 @@
 #' The function evaluates multiple combinations of hyperparameters to find the 
 #' best parameters based on a user-defined evaluation metric.
 #'
-#' @param X A numeric matrix or data frame of input features, with rows as observations 
+#' @param X A numeric matrix or data frame of input features, with rows as 
+#' observations 
 #'   and columns as features.
-#' @param y Optional. A target vector. Use for classification (factor) or regression (numeric).
+#' @param y Optional. A target vector. Use for classification (factor) or 
+#' regression (numeric).
 #'   If NULL, clustering will be performed.
-#' @param task Character. Specifies the task to perform: \code{"clustering"}, \code{"classification"}, 
+#' @param task Character. Specifies the task to perform: \code{"clustering"},
+#'  \code{"classification"}, 
 #'   or \code{"regression"}.
-#' @param grid A data frame specifying the hyperparameter combinations to evaluate. 
+#' @param grid A data frame specifying the hyperparameter combinations to 
+#' evaluate. 
 #'   Should include columns \code{nAntibodies}, \code{beta}, and \code{epsilon}.
-#' @param metric Character. The evaluation metric to use for selecting the best hyperparameters. 
+#' @param metric Character. The evaluation metric to use for selecting the best 
+#' hyperparameters. 
 #'   Options are:
 #'   \itemize{
 #'     \item \code{"accuracy"}: For classification tasks.
@@ -24,8 +29,8 @@
 #' @return A list containing:
 #'   \itemize{
 #'     \item \code{best_params}: A list of the best hyperparameters.
-#'     \item \code{results}: A data frame with the grid search results, including 
-#'       the performance metric for each combination.
+#'     \item \code{results}: A data frame with the grid search results, 
+#'     including the performance metric for each combination.
 #'   }
 #'
 #' @examples
@@ -60,9 +65,13 @@ swarmbHIVE <- function(X,
                        grid, metric = "silhouette", 
                        verbose = TRUE) {
   
+  # Validate input data
+  .validate_bHIVE_input(X, y)
+  
   # Validate task
   if (!task %in% c("clustering", "classification", "regression")) {
-    stop("Invalid task. Choose from 'clustering', 'classification', or 'regression'.")
+    stop("Invalid task. Choose from 'clustering', 'classification', or 
+         'regression'.")
   }
   
   # Validate metric

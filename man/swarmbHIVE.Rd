@@ -14,25 +14,30 @@ swarmbHIVE(
 )
 }
 \arguments{
-\item{X}{A numeric matrix or data frame of input features, with rows as observations 
-and columns as features.}
+\item{X}{A numeric matrix or data frame of input features, with rows as 
+observations 
+  and columns as features.}
 
-\item{y}{Optional. A target vector. Use for classification (factor) or regression (numeric).
-If NULL, clustering will be performed.}
+\item{y}{Optional. A target vector. Use for classification (factor) or 
+regression (numeric).
+  If NULL, clustering will be performed.}
 
-\item{task}{Character. Specifies the task to perform: \code{"clustering"}, \code{"classification"}, 
-or \code{"regression"}.}
+\item{task}{Character. Specifies the task to perform: \code{"clustering"},
+\code{"classification"}, 
+ or \code{"regression"}.}
 
-\item{grid}{A data frame specifying the hyperparameter combinations to evaluate. 
-Should include columns \code{nAntibodies}, \code{beta}, and \code{epsilon}.}
+\item{grid}{A data frame specifying the hyperparameter combinations to 
+evaluate. 
+  Should include columns \code{nAntibodies}, \code{beta}, and \code{epsilon}.}
 
-\item{metric}{Character. The evaluation metric to use for selecting the best hyperparameters. 
-Options are:
-\itemize{
-  \item \code{"accuracy"}: For classification tasks.
-  \item \code{"rmse"}: For regression tasks.
-  \item \code{"silhouette"}: For clustering tasks.
-}}
+\item{metric}{Character. The evaluation metric to use for selecting the best 
+hyperparameters. 
+  Options are:
+  \itemize{
+    \item \code{"accuracy"}: For classification tasks.
+    \item \code{"rmse"}: For regression tasks.
+    \item \code{"silhouette"}: For clustering tasks.
+  }}
 
 \item{verbose}{Logical. If \code{TRUE}, prints progress messages.}
 }
@@ -40,8 +45,8 @@ Options are:
 A list containing:
   \itemize{
     \item \code{best_params}: A list of the best hyperparameters.
-    \item \code{results}: A data frame with the grid search results, including 
-      the performance metric for each combination.
+    \item \code{results}: A data frame with the grid search results, 
+    including the performance metric for each combination.
   }
 }
 \description{

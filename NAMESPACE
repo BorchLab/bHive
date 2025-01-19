@@ -2,6 +2,8 @@
 
 export(bHIVE)
 export(bHIVEmodel)
+export(honeycombHIVE)
+export(honeycombHIVEmodel)
 export(swarmbHIVE)
 importFrom(cluster,silhouette)
 importFrom(magrittr,"%>%")
