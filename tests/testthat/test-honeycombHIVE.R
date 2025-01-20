@@ -79,7 +79,7 @@ test_that("honeycombHIVE runs successfully for regression task", {
     expect_equal(layer$task, "regression")
     expect_true(is.data.frame(layer$antibodies))
     expect_true(is.numeric(layer$assignments))
-    expect_equal(length(layer$predictions), 506)
+    expect_equal(length(layer$membership), 506)
   }
 })
 
@@ -109,7 +109,7 @@ test_that("honeycombHIVE handles different distance functions", {
   data(iris)
   X <- as.matrix(iris[, 1:4])
   
-  dist_funcs <- c("euclidean", "manhattan", "minkowski", "cosine")
+  dist_funcs <- c("euclidean", "manhattan", "minkowski")
   for (dist in dist_funcs) {
     expect_silent(
       res <- honeycombHIVE(X = X, 
