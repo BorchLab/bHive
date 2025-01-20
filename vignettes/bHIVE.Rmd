@@ -20,6 +20,7 @@ knitr::opts_chunk$set(error=FALSE, message=FALSE, warning=FALSE)
 library(BiocStyle)
 library(bHIVE)
 library(ggplot2)
+library(viridis)
 library(caret)
 ```
 
@@ -29,8 +30,9 @@ The **bHIVE** package implements an Artificial Immune Network (AI-Net) algorithm
 
 This vignette demonstrates how to:
 1. Perform clustering, classification, and regression using `bHIVE`.
-2. Tune hyperparameters using `tune_bHIVE`.
+2. Tune hyperparameters using `swarmbHIVE`.
 3. Use the `caret` wrapper for easy integration with machine learning workflows.
+4. Use multilayered immune networks with `honeycombHIVE`
 4. Visualize results with `ggplot2`.
 
 ## Parametes for `bHIVE()`
@@ -72,7 +74,7 @@ The behavior of the `bHIVE` function can be fine-tuned using a range of hyperpar
 
 The following example demonstrates how to configure the `bHIVE` function for clustering, emphasizing the impact of key parameters:
 
-```{r tidy = FALSE}
+```{r tidy = FALSE, eval=FALSE}
 # Load the Iris dataset
 data(iris)
 X <- as.matrix(iris[, 1:4])
@@ -125,6 +127,7 @@ ggplot(iris, aes(x = Sepal.Length,
     labs(title = "Clustering Results with bHIVE", 
          x = "Sepal Length", 
          y = "Sepal Width") +
+    scale_color_viridis(discrete = TRUE)
     theme_minimal()
 ```
 
@@ -141,11 +144,12 @@ set.seed(42)
 res <- bHIVE(X = X, 
              y = y, 
              task = "classification", 
-             nAntibodies = 30, 
-             beta = 5, 
-             epsilon = 0.01, 
-             maxIter = 20, 
-             k = 3,
+             nAntibodies = 50, 
+             beta = 4, 
+             epsilon = 0.02, 
+             maxIter = 64, 
+             initMethod = "random",
+             k = 4,
              verbose = FALSE)
 
 # Compare predicted vs actual
@@ -161,6 +165,7 @@ ggplot(iris, aes(x = Sepal.Length,
     labs(title = "Classification Results with bHIVE", 
          x = "Sepal Length", 
          y = "Sepal Width") +
+    scale_color_viridis(discrete = TRUE)
     theme_minimal()
 ```
 
@@ -183,7 +188,8 @@ res <- bHIVE(X = X,
              nAntibodies = 50, 
              beta = 5, 
              epsilon = 0.01, 
-             maxIter = 30, 
+             maxIter = 100, 
+             initMethod = "random",
              k = 3,
              verbose = FALSE)
 
@@ -232,6 +238,7 @@ ggplot(tuning_results$results, aes(x = nAntibodies, y = metric_value, color = fa
          x = "Number of Antibodies", 
          y = "Silhouette Score", 
          color = "Beta") +
+    scale_color_viridis(discrete = TRUE) + 
     theme_minimal()
 ```
 
@@ -259,7 +266,56 @@ ggplot(model) +
     labs(title = "Caret Tuning Results for bHIVE", 
          x = "Hyperparameter Combination", 
          y = "Performance Metric") +
+    scale_color_viridis(discrete = TRUE)
     theme_minimal()
+```
+## honeycombHIVE: Multilayered bHIVVES
+
+In `honeycombHIVE`, clustering proceeds hierarchically across multiple layers:
+
+* Each layer generates a refined set of cluster centroids based on the results of the previous layer.  
+* At layer $L$, the centroids $A_L$ are derived from the means of data points assigned to each cluster at layer $L−1$.  
+
+```{r tidy=FALSE}
+# Load the Iris dataset
+data(iris)
+X <- as.matrix(iris[, 1:4])
+
+# Run honeycombHIVE for clustering
+res <- honeycombHIVE(X = X, 
+                     task = "clustering", 
+                     epsilon = 0.05,
+                     layers = 3, 
+                     nAntibodies = 30, 
+                     beta = 5, 
+                     maxIter = 10, 
+                     verbose = FALSE)
+
+# Visualize results from each layer
+for (i in seq_along(res)) {
+  
+  # Create a data frame for plotting; add original Sepal.Length and Sepal.Width
+  plot_df <- data.frame(
+    Sepal.Length = iris$Sepal.Length, 
+    Sepal.Width  = iris$Sepal.Width,
+    Cluster      = factor(res[[i]]$membership)  # cluster labels from layer i
+  )
+  
+  # Basic ggplot scatter plot
+  plot <- ggplot(plot_df, aes(x = Sepal.Length, 
+                              y = Sepal.Width, 
+                              color = Cluster)) +
+    geom_point(size = 3) +
+    labs(
+      title = paste("honeycombHIVE Clustering - Layer", i),
+      x     = "Sepal Length",
+      y     = "Sepal Width"
+    ) +
+    theme_minimal() +
+    scale_color_viridis(discrete = TRUE)
+  
+  print(plot)
+}
 ```
 
 # Conclusions
