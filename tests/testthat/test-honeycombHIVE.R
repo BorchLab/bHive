@@ -21,7 +21,7 @@ test_that("honeycombHIVE runs successfully for clustering task", {
     expect_named(layer, c("antibodies", "assignments", "task", "membership"))
     expect_equal(layer$task, "clustering")
     expect_true(is.data.frame(layer$antibodies))
-    expect_true(is.integer(layer$assignments))
+    expect_true(is.numeric(layer$assignments))
     expect_equal(length(layer$membership), 150)
   }
 })

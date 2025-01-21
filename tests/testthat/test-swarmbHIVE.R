@@ -12,7 +12,11 @@ test_that("swarmbHIVE works for clustering", {
   )
   
   # Tune hyperparameters
-  res <- swarmbHIVE(X = X, task = "clustering", grid = grid, metric = "silhouette", verbose = FALSE)
+  res <- swarmbHIVE(X = X, 
+                    task = "clustering", 
+                    grid = grid, 
+                    metric = "silhouette", 
+                    verbose = FALSE)
   
   # Check results structure
   expect_named(res, c("best_params", "results"))
@@ -84,5 +88,8 @@ test_that("swarmbHIVE throws an error for invalid metric", {
   )
   
   # Invalid metric
-  expect_error(swarmbHIVE(X = X, task = "clustering", grid = grid, metric = "invalid_metric"))
+  expect_error(swarmbHIVE(X = X, 
+                          task = "clustering", 
+                          grid = grid,
+                          metric = "invalid_metric"))
 })

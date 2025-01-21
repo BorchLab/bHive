@@ -56,17 +56,21 @@ calculation. Default \code{"euclidean"}.}
 
 \item{verbose}{Logical, whether to print progress at each layer.}
 
-\item{...}{Additional parameters passed to the placeholder \code{bHIVE} function.}
+\item{...}{Additional parameters passed to \code{bHIVE}.}
 }
 \value{
 A list of length \code{layers}. Each element (layer) includes:
 \itemize{
   \item \code{antibodies}: The prototype positions in that layer.
-  \item \code{assignments}: The antibody index assigned to each row of that layer's data.
-  \item \code{membership}: For each \strong{original} row of \code{X}, which cluster/antibody it belongs to in this layer.
-  \item \code{predictions}: For classification/regression, predicted label or numeric value
-        for each \strong{row in this layer's data}.
-  \item \code{task}: The specified task (clustering, classification, regression).
+  \item \code{assignments}: The antibody index assigned to each row of 
+  that layer's data.
+  \item \code{membership}: For each \strong{original} row of \code{X}, 
+  which cluster/antibody it belongs to in this layer.
+  \item \code{predictions}: For classification/regression, predicted label 
+  or numeric value
+        for each \strong{original row in X}.
+  \item \code{task}: The specified task (clustering, classification, 
+  regression).
 }
 }
 \description{
@@ -97,7 +101,6 @@ resC <- honeycombHIVE(
 # Final cluster membership of original rows:
 head(resC[[3]]$membership)
 
-
 # Example 2: Regression
 set.seed(42)
 X_reg <- matrix(rnorm(100*4), ncol = 4)
@@ -109,8 +112,7 @@ resReg <- honeycombHIVE(
   layers = 3,
   nAntibodies = 10
 )
-# Check membership + final predictions:
-head(resReg[[3]]$membership)
-head(resReg[[3]]$predictions)
+# Compare final predictions to original y:
+cor(resReg[[3]]$predictions, y_reg)
 
 }

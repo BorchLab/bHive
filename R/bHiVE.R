@@ -12,7 +12,8 @@
 #' regression (numeric).
 #'   If NULL, clustering will be performed.
 #' @param task Character. Specifies the task to perform: \code{"clustering"}, 
-#' \code{"classification"}, or \code{"regression"}. If NULL, it is inferred based on \code{y}.
+#' \code{"classification"}, or \code{"regression"}. If NULL, it is inferred 
+#' based on \code{y}.
 #' @param nAntibodies Integer. The initial population size of antibodies. 
 #' @param beta Numeric. Clone multiplier (controls how many clones are 
 #' generated for top-matching antibodies).
@@ -53,6 +54,10 @@
 #'     antibodies.
 #'     \item \code{"random"} - samples Gaussian noise using \code{X}'s column 
 #'     means/sds.
+#'     \item \code{"random_uniform"} - samples uniformly in [min, max] of each 
+#'     column.
+#'     \item \code{"kmeans++"} - tries a kmeans++-like initialization for 
+#'     coverage.
 #'   }
 #' @param k Integer. Number of top-matching antibodies (by affinity) to 
 #' consider cloning for each data point.
@@ -129,7 +134,7 @@ bHIVE <- function(X,
                   maxClones = Inf,
                   stopTolerance = 0.0, 
                   noImprovementLimit = Inf,
-                  initMethod = c("sample", "random"), 
+                  initMethod = c("sample", "random", "random_uniform", "kmeans++"), 
                   k = 3, 
                   verbose = TRUE) {
   
@@ -149,7 +154,8 @@ bHIVE <- function(X,
   
   # Validate task input
   if (!task %in% c("clustering", "classification", "regression")) {
-    stop("Invalid task. Choose from 'clustering', 'classification', or 'regression'.")
+    stop("Invalid task. Choose from 'clustering', 'classification', or 
+         'regression'.")
   }
   
   # Match initialization method
@@ -157,22 +163,41 @@ bHIVE <- function(X,
   n <- nrow(X)
   d <- ncol(X)
   
-  # Initialize antibodies
+  # ANTIBODY INITIALIZATION
   if (initMethod == "sample") {
-    A <- X[sample(1:n, size = nAntibodies, replace = TRUE), ]
-  } else {
+    # Randomly selects existing data points as initial antibodies
+    A <- X[sample(1:n, size = nAntibodies, replace = TRUE), , drop = FALSE]
+    
+  } else if (initMethod == "random") {
+    # Random from Gaussian distribution using global mean/sd of X
     xMean <- colMeans(X)
     xSd <- apply(X, 2, sd) + 1e-8
     A <- matrix(rnorm(nAntibodies * d, mean = 0, sd = 1), 
                 nrow = nAntibodies, ncol = d)
-    A <- sweep(A, 2, xSd, `*`)  # Scale by column SD
+    A <- sweep(A, 2, xSd, `*`)   # Scale by column SD
     A <- sweep(A, 2, xMean, `+`) # Shift by column mean
+    
+  } else if (initMethod == "random_uniform") {
+    # Random uniform sampling in the min-max range for each feature
+    xMin <- apply(X, 2, min)
+    xMax <- apply(X, 2, max)
+    A <- matrix(runif(nAntibodies * d), nrow = nAntibodies, ncol = d)
+    # scale each column to [xMin, xMax]
+    for (col_i in seq_len(d)) {
+      A[, col_i] <- xMin[col_i] + (xMax[col_i] - xMin[col_i]) * A[, col_i]
+    }
+    
+  } else if (initMethod == "kmeans++") {
+    # Simple kmeans++ style initialization for coverage
+    A <- .init_kmeanspp(X, nAntibodies)
   }
   
   # Ensure A is not empty
-  if (nrow(A) == 0) stop("Initialization failed. Ensure `nAntibodies` and `X` are compatible.")
+  if (nrow(A) == 0) {
+    stop("Initialization failed. Ensure `nAntibodies` and `X` are compatible.")
+  }
   
-  # Select affinity and distance functions
+  # SELECT AFFINITY & DISTANCE
   affFn <- switch(
     affinityFunc,
     "gaussian"   = .affinity_RBF_custom,
@@ -194,16 +219,33 @@ bHIVE <- function(X,
     stop("Invalid distFunc provided.")
   )
   
-  # Initialize antibody values for regression
-  antibody_values <- if (task == "regression") runif(nrow(A), min(y), max(y)) else NULL
+  # TASK-SPECIFIC INITIALIZATION
+  if (task == "classification") {
+    classes <- levels(y)
+    class_counts <- matrix(0, nrow = nAntibodies, ncol = length(classes))
+    colnames(class_counts) <- classes
+    
+  } else if (task == "regression") {
+    sum_y <- numeric(nAntibodies)
+    sum_aff <- numeric(nAntibodies)
+  }
   
   # Iterative training process
   noImprovementCount <- 0
   prevAntibodyCount <- nrow(A)
   
   for (iter in 1:maxIter) {
+    
+    # Reset counters for classification/regression each iteration
+    if (task == "classification") {
+      class_counts[] <- 0 
+    } else if (task == "regression") {
+      sum_y[] <- 0
+      sum_aff[] <- 0
+    }
+    # CLONAL SELECTION FOR EACH DATA POINT
     for (i in 1:n) {
-      x <- X[i, ]
+      x_i <- X[i, ]
       
       # Ensure A is valid before affinity calculations
       if (is.null(A) || nrow(A) == 0) {
@@ -211,12 +253,28 @@ bHIVE <- function(X,
       }
       
       # Affinity calculation
-      aff_values <- apply(A, 1, function(a) affFn(x, a, affinityParams))
+      aff_values <- apply(A, 1, function(a) affFn(x_i, a, affinityParams))
       max_aff <- max(aff_values, na.rm = TRUE)
-      if (max_aff == 0 || is.na(max_aff)) next  # Skip this data point
+      if (max_aff == 0 || is.na(max_aff)) next  # Skip this data point if no valid aff
       
       # Identify the top k matching antibodies
       top_idx <- order(aff_values, decreasing = TRUE)[seq_len(min(k, length(aff_values)))]
+      
+      # For classification/regression, accumulate label info:
+      if (task == "classification") {
+        yclass <- as.character(y[i])
+        class_col <- match(yclass, colnames(class_counts))
+        # Weighted by affinity or by fraction of top-k?
+        for (idx in top_idx) {
+          class_counts[idx, class_col] <- class_counts[idx, class_col] + aff_values[idx]
+        }
+      } else if (task == "regression") {
+        # Weighted sum of y and sum of affinity
+        for (idx in top_idx) {
+          sum_y[idx] <- sum_y[idx] + (y[i] * aff_values[idx])
+          sum_aff[idx] <- sum_aff[idx] + aff_values[idx]
+        }
+      }
       
       # Clone and mutate top k antibodies
       for (j in top_idx) {
@@ -226,13 +284,31 @@ bHIVE <- function(X,
         for (cloneId in 1:nClones) {
           mutation_rate <- max((1.0 - f_j) * mutationDecay^(iter - 1), mutationMin)
           mutated <- A[j, ] + rnorm(d, mean = 0, sd = mutation_rate)
-          f_mutated <- affFn(x, mutated, affinityParams)
+          f_mutated <- affFn(x_i, mutated, affinityParams)
           if (f_mutated > f_j) A[j, ] <- mutated
         }
       }
     }
     
-    # Network Suppression: Remove antibodies that are too similar
+    # UPDATE CLASSIFICATION / REGRESSION VALUES
+    if (task == "classification") {
+      antibody_classes <- apply(class_counts, 1, function(row) {
+        if (all(row == 0)) {
+          # fallback if no data assigned
+          colnames(class_counts)[sample(ncol(class_counts), 1)]
+        } else {
+          colnames(class_counts)[which.max(row)]
+        }
+      })
+      
+    } else if (task == "regression") {
+      # Weighted average for each antibody
+      # if sum_aff == 0, fallback to overall mean
+      overall_mean <- mean(y)
+      antibody_values <- ifelse(sum_aff > 0, sum_y / sum_aff, overall_mean)
+    }
+    
+    # NETWORK SUPPRESSION
     keep <- rep(TRUE, nrow(A))
     for (u in 1:(nrow(A) - 1)) {
       if (!keep[u]) next
@@ -241,11 +317,21 @@ bHIVE <- function(X,
         dist_uv <- distFn(A[u, ], A[v, ], affinityParams)
         if (dist_uv < epsilon) keep[v] <- FALSE
       }
+      
     }
-    A <- A[keep, , drop = FALSE]
     
-    # Update antibody values for regression
-    if (task == "regression") antibody_values <- antibody_values[keep]
+    A <- A[keep, , drop = FALSE]
+    # IMPORTANT for regression:
+    if (task == "regression") {
+      antibody_values <- antibody_values[keep]
+    }
+    
+    # also remove unneeded classification/regression rows
+    if (task == "classification") {
+      class_counts <- class_counts[keep, , drop = FALSE]
+    } else if (task == "regression") {
+      antibody_values <- antibody_values[keep]
+    }
     
     # Ensure A is not empty after suppression
     if (nrow(A) == 0) {
@@ -276,23 +362,30 @@ bHIVE <- function(X,
     }
   }
   
-  # Task-specific assignments
+  # FINAL ASSIGNMENTS
   if (task == "clustering") {
     assignments <- apply(X, 1, function(x) {
       distances <- apply(A, 1, function(a) distFn(x, a, affinityParams))
       which.min(distances)
     })
+    # Relabel clusters to be sequential from 1 to #unique
+    assignments <- as.numeric(factor(assignments))
+    
   } else if (task == "classification") {
-    antibody_classes <- sample(levels(y), nAntibodies, replace = TRUE)
+    # Use the final (dominant) label from each antibody at assignment time
     assignments <- apply(X, 1, function(x) {
       affinities <- apply(A, 1, function(a) affFn(x, a, affinityParams))
-      antibody_classes[which.max(affinities)]
+      idx <- which.max(affinities)
+      # The antibody's final stored class:
+      antibody_classes[idx]
     })
+    
   } else if (task == "regression") {
+    # Weighted combination of antibody_values
     assignments <- apply(X, 1, function(x) {
       affinities <- apply(A, 1, function(a) affFn(x, a, affinityParams))
       if (sum(affinities) == 0) {
-        mean(antibody_values)
+        mean(y) # fallback to overall mean if no affinity
       } else {
         sum(affinities * antibody_values) / sum(affinities)
       }
@@ -303,63 +396,102 @@ bHIVE <- function(X,
 }
 
 
+# ---------------------------
+# HELPER FUNCTIONS
+# ---------------------------
 
-#Afinity Functions
+# Simple kmeans++ style initialization
+.init_kmeanspp <- function(X, nCenters) {
+  X <- as.matrix(X)
+  n <- nrow(X)
+  d <- ncol(X)
+  
+  # 1) choose one center uniformly at random
+  centers <- matrix(0, nrow = nCenters, ncol = d)
+  idx <- sample(n, 1)
+  centers[1, ] <- X[idx, ]
+  
+  # 2) For each data point x, compute D(x) = min distance to any chosen center
+  # 3) Choose a new data point at random weighted by D(x)^2
+  if (nCenters > 1) {
+    for (cId in 2:nCenters) {
+      dists <- sapply(1:n, function(i) {
+        min(rowSums((centers[1:(cId-1), , drop = FALSE] - X[i, ])^2))
+      })
+      probs <- dists / sum(dists)
+      idx <- sample(n, 1, prob = probs)
+      centers[cId, ] <- X[idx, ]
+    }
+  }
+  centers
+}
+
+
+# AFFINITY FUNCTIONS
 .affinity_RBF_custom <- function(x, y, params) {
+  # Gaussian (RBF) kernel: exp(-alpha * ||x-y||^2)
   dist2 <- sum((x - y)^2)
   exp(-params$alpha * dist2)
 }
+
 .affinity_laplace_custom <- function(x, y, params) {
+  # Laplace kernel: exp(-alpha * ||x-y||_1)
   dist1 <- sum(abs(x - y))
   exp(-params$alpha * dist1)
 }
+
 .affinity_poly_custom <- function(x, y, params) {
+  # Polynomial kernel: (x.y + c)^p
   (sum(x * y) + params$c)^params$p
 }
+
 .affinity_cosine_custom <- function(x, y, params) {
+  # Cosine similarity: (x.y)/(||x||*||y||)
   denom <- sqrt(sum(x^2)) * sqrt(sum(y^2))
   if (denom == 0) return(0)
   sum(x * y) / denom
 }
+
 .affinity_hamming_custom <- function(x, y, params) {
+  # Hamming similarity:
   x_bin <- as.integer(x)
   y_bin <- as.integer(y)
   matches <- sum(x_bin == y_bin)
   matches / length(x)
 }
-  
-# Distance Functions 
+
+# DISTANCE FUNCTIONS
 .dist_euclidean_custom <- function(x, y, params) {
-    sqrt(sum((x - y)^2))
+  sqrt(sum((x - y)^2))
 }
-  
+
 .dist_manhattan_custom <- function(x, y, params) {
-    sum(abs(x - y))
+  sum(abs(x - y))
 }
-  
+
 .dist_minkowski_custom <- function(x, y, params) {
-    p <- params$p
-    sum(abs(x - y)^p)^(1/p)
+  p <- params$p
+  sum(abs(x - y)^p)^(1/p)
 }
-  
+
 .dist_cosine_custom <- function(x, y, params) {
-    # 1 - Cosine Similarity
-    cs <- .affinity_cosine_custom(x, y, params)
-    1 - cs
+  # 1 - Cosine similarity
+  cs <- .affinity_cosine_custom(x, y, params)
+  1 - cs
 }
-  
+
 .dist_mahalanobis_custom <- function(x, y, params) {
-    # Sigma must be in params$Sigma
-    if (is.null(params$Sigma)) {
-      stop("Mahalanobis distance requires a covariance matrix Sigma in distParams.")
-    }
-    diff <- x - y
-    invSigma_diff <- solve(params$Sigma, diff)   # or precompute solve(params$Sigma) once
-    sqrt(sum(diff * invSigma_diff))
+  # Sigma must be in params$Sigma
+  if (is.null(params$Sigma)) {
+    stop("Mahalanobis distance requires a covariance matrix Sigma in distParams.")
+  }
+  diff <- x - y
+  invSigma_diff <- solve(params$Sigma, diff)  
+  sqrt(sum(diff * invSigma_diff))
 }
-  
+
 .dist_hamming_custom <- function(x, y, params) {
-    x_bin <- as.integer(x)
-    y_bin <- as.integer(y)
-    sum(x_bin != y_bin)
+  x_bin <- as.integer(x)
+  y_bin <- as.integer(y)
+  sum(x_bin != y_bin)
 }

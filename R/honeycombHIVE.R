@@ -32,16 +32,20 @@
 #' @param distance Distance metric used in the \code{dist} function for medoid
 #' calculation. Default \code{"euclidean"}.
 #' @param verbose Logical, whether to print progress at each layer.
-#' @param ... Additional parameters passed to the placeholder \code{bHIVE} function.
+#' @param ... Additional parameters passed to \code{bHIVE}.
 #'
 #' @return A list of length \code{layers}. Each element (layer) includes:
 #' \itemize{
 #'   \item \code{antibodies}: The prototype positions in that layer.
-#'   \item \code{assignments}: The antibody index assigned to each row of that layer's data.
-#'   \item \code{membership}: For each \strong{original} row of \code{X}, which cluster/antibody it belongs to in this layer.
-#'   \item \code{predictions}: For classification/regression, predicted label or numeric value
-#'         for each \strong{row in this layer's data}.
-#'   \item \code{task}: The specified task (clustering, classification, regression).
+#'   \item \code{assignments}: The antibody index assigned to each row of 
+#'   that layer's data.
+#'   \item \code{membership}: For each \strong{original} row of \code{X}, 
+#'   which cluster/antibody it belongs to in this layer.
+#'   \item \code{predictions}: For classification/regression, predicted label 
+#'   or numeric value
+#'         for each \strong{original row in X}.
+#'   \item \code{task}: The specified task (clustering, classification, 
+#'   regression).
 #' }
 #'
 #' @examples
@@ -59,7 +63,6 @@
 #' # Final cluster membership of original rows:
 #' head(resC[[3]]$membership)
 #'
-#' 
 #' # Example 2: Regression
 #' set.seed(42)
 #' X_reg <- matrix(rnorm(100*4), ncol = 4)
@@ -71,9 +74,8 @@
 #'   layers = 3,
 #'   nAntibodies = 10
 #' )
-#' # Check membership + final predictions:
-#' head(resReg[[3]]$membership)
-#' head(resReg[[3]]$predictions)
+#' # Compare final predictions to original y:
+#' cor(resReg[[3]]$predictions, y_reg)
 #'
 #' @importFrom stats median
 #' @export
@@ -91,6 +93,7 @@ honeycombHIVE <- function(X,
                           distance = "euclidean",
                           verbose = TRUE,
                           ...) {
+  
   task <- match.arg(task)
   collapseMethod <- match.arg(collapseMethod)
   
@@ -99,10 +102,13 @@ honeycombHIVE <- function(X,
   X <- as.data.frame(X)
   n_original <- nrow(X)
   
+  # Assign rownames if missing
   if (is.null(rownames(X))) {
     rownames(X) <- paste0("row_", seq_len(n_original))
   }
   
+  # rowIndices: a list mapping each "prototype" row to the original row indices
+  # Initially, each row is its own group
   rowIndices <- lapply(seq_len(n_original), function(i) i)
   names(rowIndices) <- rownames(X)
   
@@ -110,17 +116,18 @@ honeycombHIVE <- function(X,
   current_y <- if (!is.null(y)) y else NULL
   
   results <- vector("list", length = layers)
-  
-  dots <- list(...) # Capture the ellipsis arguments
+  dots <- list(...) # Capture additional arguments to pass to bHIVE
   
   for (layer in seq_len(layers)) {
     if (verbose) {
-      cat(sprintf("\n=== Running layer %d / %d (task = %s) ===\n", layer, layers, task))
+      cat(sprintf("\n=== Running layer %d / %d (task = %s) ===\n", layer, 
+                  layers, task))
     }
     
+    # Make sure we don't exceed number of rows
     nAntibodies_layer <- min(nAntibodies, max(minAntibodies, nrow(current_X)))
     
-    # Pass arguments to bHIVE explicitly, handling potential NULLs
+    # Prepare arguments for bHIVE
     bHIVE_args <- list(X = current_X,
                        y = current_y,
                        task = task,
@@ -130,29 +137,47 @@ honeycombHIVE <- function(X,
                        maxIter = maxIter,
                        verbose = verbose)
     
-    # Add any extra arguments from dots, excluding those already specified
+    # Add any extra arguments from dots, excluding those already used
     extra_args <- dots[!names(dots) %in% names(bHIVE_args)]
     bHIVE_args <- c(bHIVE_args, extra_args)
     
-    res_layer <- do.call(bHIVE, bHIVE_args) # Use do.call to pass the named list
+    # Call bHIVE for this layer
+    res_layer <- do.call(bHIVE, bHIVE_args)
     
-    membership <- rep(NA, n_original)
-    cluster_ids <- res_layer$assignments
+    # For each original row, we store the cluster membership
+    membership <- rep(NA, n_original)  # cluster membership for original data
+    cluster_ids <- res_layer$assignments  # cluster assignments for current layer's data
     unique_clusters <- unique(cluster_ids)
     
+    # Track how each newly formed prototype maps back to original rows
     subsets_rownames <- split(rownames(current_X), f = cluster_ids)
     
     new_rowIndices <- list()
     cluster_counter <- 1
-    predictions_this_layer <- rep(NA, nrow(current_X))
     
+    # Classification/regression, store predictions for all original rows
+    # at this layer, so we can compare to y directly.
+    if (task %in% c("classification", "regression")) {
+      predictions_all_original <- rep(NA, n_original)
+    } else {
+      predictions_all_original <- NULL
+    }
+    
+    proto_matrix <- NULL  # will accumulate prototypes
+    
+    # Iterate over each cluster from bHIVE
     for (cid in unique_clusters) {
       rn_in_cluster <- subsets_rownames[[as.character(cid)]]
+      # 'orig_indices' = which original row indices belong to this cluster
       orig_indices <- unlist(rowIndices[rn_in_cluster], use.names = FALSE)
+      
+      # Assign membership
       membership[orig_indices] <- cluster_counter
       
+      # Subset for prototype creation
       sub_data <- current_X[rn_in_cluster, , drop = FALSE]
       
+      # Create a prototype of that cluster
       if (nrow(sub_data) == 0) {
         proto <- rep(NA, ncol(current_X))
       } else {
@@ -174,26 +199,32 @@ honeycombHIVE <- function(X,
         )
       }
       
+      # For classification/regression, store predictions for *original rows* in this cluster
       if (task == "classification" && !is.null(current_y)) {
         idx_in_current <- match(rn_in_cluster, rownames(current_X))
         if (length(idx_in_current) > 0) {
           y_vals <- current_y[idx_in_current]
           tb <- table(y_vals)
           class_pred <- names(tb)[which.max(tb)]
-          predictions_this_layer[idx_in_current] <- class_pred
+          # fill the predictions for the original indices
+          predictions_all_original[orig_indices] <- class_pred
         }
+        
       } else if (task == "regression" && !is.null(current_y)) {
         idx_in_current <- match(rn_in_cluster, rownames(current_X))
         if (length(idx_in_current) > 0) {
           val_pred <- mean(current_y[idx_in_current], na.rm = TRUE)
-          predictions_this_layer[idx_in_current] <- val_pred
+          # fill the predictions for the original indices
+          predictions_all_original[orig_indices] <- val_pred
         }
       }
       
+      # Construct new row (prototype) name
       new_row_name <- paste0("Layer", layer, "_Cluster", cluster_counter)
       new_rowIndices[[new_row_name]] <- orig_indices
       
-      if (cluster_counter == 1) {
+      # Accumulate prototype in proto_matrix
+      if (is.null(proto_matrix)) {
         proto_matrix <- matrix(proto, nrow = 1)
         rownames(proto_matrix) <- new_row_name
       } else {
@@ -205,6 +236,7 @@ honeycombHIVE <- function(X,
       cluster_counter <- cluster_counter + 1
     }
     
+    # Optionally discard small clusters
     if (!is.null(minClusterSize)) {
       keep_idx <- sapply(new_rowIndices, length) >= minClusterSize
       if (any(!keep_idx)) {
@@ -217,36 +249,48 @@ honeycombHIVE <- function(X,
       }
     }
     
-    if (nrow(proto_matrix) == 0) {
+    if (is.null(proto_matrix) || nrow(proto_matrix) == 0) {
       stop("No valid prototypes generated. Please check parameters and input data.")
     }
     
+    # Prepare for the next layer
     new_data <- as.data.frame(proto_matrix)
     current_X <- new_data
     rowIndices <- new_rowIndices
     
+    # Save the full predictions (for original data) in res_layer
     if (task %in% c("classification", "regression")) {
-      res_layer$predictions <- predictions_this_layer
+      res_layer$predictions <- predictions_all_original
+    } else {
+      res_layer$predictions <- NULL
     }
     
+    # Also store membership for each original row
     res_layer$membership <- membership
+    
+    # Store the updated layer result
     results[[layer]] <- res_layer
     
     if (verbose) {
-      cat(sprintf("Layer %d completed. Next layer has %d data points.\n", layer, nrow(current_X)))
+      cat(sprintf("Layer %d completed. Next layer has %d data points.\n", 
+                  layer, nrow(current_X)))
     }
     
+    # If no data remain, we can either break or reinit
     if (nrow(current_X) == 0 && layer < layers) {
       warning("No valid clusters remain after layer ", layer, ". Reinitializing with original dataset.\n")
       current_X <- X
       rowIndices <- lapply(seq_len(n_original), function(i) i)
       names(rowIndices) <- rownames(X)
-      if (!is.null(y)) current_y <- y
-      if (task == "classification") {
+      current_y <- y
+      # If classification, ensure factor
+      if (task == "classification" && !is.null(current_y)) {
         current_y <- as.factor(current_y)
       }
       
     } else {
+      # Rebuild current_y for next layer (classification/regression) 
+      # each new prototype has a label/value from the collapsed cluster
       if (task == "classification" && !is.null(current_y)) {
         new_y <- rep(NA, nrow(current_X))
         nrn <- rownames(current_X)
@@ -257,6 +301,7 @@ honeycombHIVE <- function(X,
           new_y[k] <- names(tb)[which.max(tb)]
         }
         current_y <- as.factor(new_y)
+        
       } else if (task == "regression" && !is.null(current_y)) {
         new_y <- rep(NA, nrow(current_X))
         nrn <- rownames(current_X)

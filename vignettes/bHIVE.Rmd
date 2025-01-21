@@ -56,7 +56,7 @@ The behavior of the `bHIVE` function can be fine-tuned using a range of hyperpar
 | `maxClones`           | Maximum number of clones per antibody. Default is unlimited (`Inf`).                                         |
 | `stopTolerance`       | Tolerance for stopping the algorithm if the antibody population size stabilizes.                             |
 | `noImprovementLimit`  | Number of iterations without improvement before early stopping.                                              |
-| `initMethod`          | Method for initializing antibodies. Options: `"sample"` (randomly selects rows from `X`) or `"random"` (Gaussian noise). |
+| `initMethod`          | Method for initializing antibodies. Options: `"sample"` (randomly selects rows from `X`), `"random"` (Gaussian noise), `"random_uniform"` (samples uniformly in [min, max] of each column), or `"kmeans++"` (kmeans++-like initialization for coverage). |
 | `k`                   | Number of top-matching antibodies to consider during cloning.                                               |
 | `seed`                | Random seed for reproducibility.                                                                             |
 | `verbose`             | Logical. If `TRUE`, prints progress messages for each iteration.                                             |
@@ -144,10 +144,9 @@ set.seed(42)
 res <- bHIVE(X = X, 
              y = y, 
              task = "classification", 
-             nAntibodies = 50, 
-             beta = 4, 
-             epsilon = 0.02, 
-             maxIter = 64, 
+             nAntibodies = 100, 
+             beta = 5, 
+             epsilon = 0.05, 
              initMethod = "random",
              k = 4,
              verbose = FALSE)
@@ -185,10 +184,11 @@ set.seed(42)
 res <- bHIVE(X = X, 
              y = y, 
              task = "regression", 
-             nAntibodies = 30, 
-             beta = 5, 
+             nAntibodies = 50, 
+             beta = 10, 
              epsilon = 0.05, 
-             k = 4,
+             k = 5,
+             initMethod = "kmeans++",
              verbose = FALSE)
 
 # Compare predicted vs actual
@@ -271,6 +271,7 @@ ggplot(model) +
     scale_color_viridis(discrete = TRUE) +
     theme_minimal()
 ```
+
 ## honeycombHIVE: Multilayered bHIVVES
 
 In `honeycombHIVE`, clustering proceeds hierarchically across multiple layers:
@@ -319,6 +320,7 @@ for (i in seq_along(res)) {
   print(plot)
 }
 ```
+Note: If you use `task = "classification"` or `task = "regression"`, honeycombHIVE will generate multi-layer predictions. You can compare each layer’s predictions against the true labels/outcomes to see if performance improves or if the data become too collapsed.
 
 # Conclusions
 

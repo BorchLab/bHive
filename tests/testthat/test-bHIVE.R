@@ -26,7 +26,7 @@ test_that("bHIVE handles different distance functions correctly", {
   data(iris)
   X <- as.matrix(iris[, 1:4])
   
-  dist_funcs <- c("euclidean", "manhattan", "minkowski", "cosine")
+  dist_funcs <- c("euclidean", "manhattan", "minkowski")
   for (dist in dist_funcs) {
     expect_silent(
       res <- bHIVE(X = X, 

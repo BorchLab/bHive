@@ -20,7 +20,7 @@ bHIVE(
   maxClones = Inf,
   stopTolerance = 0,
   noImprovementLimit = Inf,
-  initMethod = c("sample", "random"),
+  initMethod = c("sample", "random", "random_uniform", "kmeans++"),
   k = 3,
   verbose = TRUE
 )
@@ -35,7 +35,8 @@ regression (numeric).
   If NULL, clustering will be performed.}
 
 \item{task}{Character. Specifies the task to perform: \code{"clustering"}, 
-\code{"classification"}, or \code{"regression"}. If NULL, it is inferred based on \code{y}.}
+\code{"classification"}, or \code{"regression"}. If NULL, it is inferred 
+based on \code{y}.}
 
 \item{nAntibodies}{Integer. The initial population size of antibodies.}
 
@@ -89,6 +90,10 @@ based on improvement.}
   antibodies.
   \item \code{"random"} - samples Gaussian noise using \code{X}'s column 
   means/sds.
+  \item \code{"random_uniform"} - samples uniformly in [min, max] of each 
+  column.
+  \item \code{"kmeans++"} - tries a kmeans++-like initialization for 
+  coverage.
 }}
 
 \item{k}{Integer. Number of top-matching antibodies (by affinity) to 
@@ -113,45 +118,4 @@ Implements an artificial immune network algorithm for clustering, classification
 and regression tasks. The algorithm evolves a population of "antibodies" 
 via clonal selection and mutation, applies network suppression to maintain 
 diversity, and assigns data points based on affinity or distance metrics.
-}
-\examples{
-# Example 1: Clustering with the Iris dataset
-data(iris)
-X <- as.matrix(iris[, 1:4])  # Numeric features only
-res <- bHIVE(X = X, 
-             task = "clustering", 
-             nAntibodies = 30, 
-             beta = 5, 
-             epsilon = 0.01, 
-             maxIter = 20, 
-             k = 3, 
-             verbose = FALSE)
-table(res$assignments)
-
-# Example 2: Classification with Iris species
-y <- iris$Species
-res <- bHIVE(X = X, 
-              y = y, 
-              task = "classification", 
-              nAntibodies = 30, 
-              beta = 5, 
-              epsilon = 0.01, 
-              maxIter = 20, 
-              k = 3, 
-              verbose = FALSE)
-table(res$assignments, y)
-
-# Example 3: Regression
-y <- as.numeric(iris$Sepal.Length)
-res <- bHIVE(X = X, 
-             y = y, 
-             task = "regression", 
-             nAntibodies = 30, 
-             beta = 5, 
-             epsilon = 0.01, 
-             maxIter = 20, 
-             k = 3, 
-             verbose = FALSE)
-cor(res$assignments, y)
-
 }
