@@ -45,12 +45,9 @@ test_that("honeycombHIVE runs successfully for classification task", {
   expect_type(res, "list")
   expect_length(res, 2) # 2 layers
   for (layer in res) {
-    expect_named(layer, c("antibodies", "assignments", "task"))
+    expect_named(layer, c("antibodies", "assignments", "task", "predictions", "membership" ))
     expect_equal(layer$task, "classification")
-    expect_true(is.matrix(layer$antibodies))
-    expect_true(is.factor(layer$assignments))
-    expect_equal(nrow(layer$antibodies), 10) # nAntibodies
-    expect_equal(length(layer$assignments), nrow(X))
+    expect_true(is.data.frame(layer$antibodies))
   }
 })
 

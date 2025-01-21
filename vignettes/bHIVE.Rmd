@@ -127,7 +127,7 @@ ggplot(iris, aes(x = Sepal.Length,
     labs(title = "Clustering Results with bHIVE", 
          x = "Sepal Length", 
          y = "Sepal Width") +
-    scale_color_viridis(discrete = TRUE)
+    scale_color_viridis(discrete = TRUE) + 
     theme_minimal()
 ```
 
@@ -165,7 +165,7 @@ ggplot(iris, aes(x = Sepal.Length,
     labs(title = "Classification Results with bHIVE", 
          x = "Sepal Length", 
          y = "Sepal Width") +
-    scale_color_viridis(discrete = TRUE)
+    scale_color_viridis(discrete = TRUE) + 
     theme_minimal()
 ```
 
@@ -185,12 +185,10 @@ set.seed(42)
 res <- bHIVE(X = X, 
              y = y, 
              task = "regression", 
-             nAntibodies = 50, 
+             nAntibodies = 30, 
              beta = 5, 
-             epsilon = 0.01, 
-             maxIter = 100, 
-             initMethod = "random",
-             k = 3,
+             epsilon = 0.05, 
+             k = 4,
              verbose = FALSE)
 
 # Compare predicted vs actual
@@ -231,13 +229,17 @@ tuning_results <- swarmbHIVE(X = X,
 tuning_results$best_params
 
 # Visualize tuning results
-ggplot(tuning_results$results, aes(x = nAntibodies, y = metric_value, color = factor(beta))) +
+ggplot(tuning_results$results, aes(x = nAntibodies, 
+                                   y = metric_value, 
+                                   color = factor(beta))) +
     geom_line() +
-    geom_point(size = 3) +
+    geom_point(aes(shape = as.factor(epsilon)), 
+                   size = 3) +
     labs(title = "Hyperparameter Tuning Results", 
          x = "Number of Antibodies", 
          y = "Silhouette Score", 
-         color = "Beta") +
+         color = "Beta", 
+         shape = "Epsilon") +
     scale_color_viridis(discrete = TRUE) + 
     theme_minimal()
 ```
@@ -266,7 +268,7 @@ ggplot(model) +
     labs(title = "Caret Tuning Results for bHIVE", 
          x = "Hyperparameter Combination", 
          y = "Performance Metric") +
-    scale_color_viridis(discrete = TRUE)
+    scale_color_viridis(discrete = TRUE) +
     theme_minimal()
 ```
 ## honeycombHIVE: Multilayered bHIVVES
