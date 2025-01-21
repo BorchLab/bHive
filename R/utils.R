@@ -1,9 +1,10 @@
-.validate_bHIVE_input <- function(X, y = NULL) {
+.validate_bHIVE_input <- function(X, 
+                                  y = NULL) {
   if (!is.matrix(X) && !is.data.frame(X)) {
     stop("Input X must be a matrix or data frame.")
   }
   if (!is.null(y)) {
-    if (!is.factor(y) && !is.numeric(y)) {
+    if (!is.factor(y) & !is.numeric(y)) {
       stop("y must be a factor (classification) or numeric vector (regression).")
     }
     if (nrow(X) != length(y)) {

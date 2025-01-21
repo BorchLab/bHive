@@ -33,7 +33,7 @@ test_that("honeycombHIVE runs successfully for classification task", {
   
   # Run honeycombHIVE for classification
   res <- honeycombHIVE(X = X, 
-                       y = y, 
+                       y = as.factor(y), 
                        task = "classification", 
                        layers = 2, 
                        nAntibodies = 10, 

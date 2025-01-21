@@ -149,8 +149,7 @@ bHIVE <- function(X,
   
   # Validate task input
   if (!task %in% c("clustering", "classification", "regression")) {
-    stop("Invalid task. Choose from 'clustering', 'classification', or 
-         'regression'.")
+    stop("Invalid task. Choose from 'clustering', 'classification', or 'regression'.")
   }
   
   # Match initialization method
@@ -171,8 +170,7 @@ bHIVE <- function(X,
   }
   
   # Ensure A is not empty
-  if (nrow(A) == 0) stop("Initialization failed. Ensure `nAntibodies` 
-                         and `X` are compatible.")
+  if (nrow(A) == 0) stop("Initialization failed. Ensure `nAntibodies` and `X` are compatible.")
   
   # Select affinity and distance functions
   affFn <- switch(
@@ -196,9 +194,12 @@ bHIVE <- function(X,
     stop("Invalid distFunc provided.")
   )
   
-  # Track iteration-based stopping
+  # Initialize antibody values for regression
+  antibody_values <- if (task == "regression") runif(nrow(A), min(y), max(y)) else NULL
+  
+  # Iterative training process
   noImprovementCount <- 0
-  prevAntibodyCount  <- nrow(A)
+  prevAntibodyCount <- nrow(A)
   
   for (iter in 1:maxIter) {
     for (i in 1:n) {
@@ -243,10 +244,12 @@ bHIVE <- function(X,
     }
     A <- A[keep, , drop = FALSE]
     
+    # Update antibody values for regression
+    if (task == "regression") antibody_values <- antibody_values[keep]
+    
     # Ensure A is not empty after suppression
     if (nrow(A) == 0) {
-      stop("All antibodies were suppressed. Adjust `epsilon` or 
-           `nAntibodies` to ensure a viable population.")
+      stop("All antibodies were suppressed. Adjust `epsilon` or `nAntibodies` to ensure a viable population.")
     }
     
     # Check for convergence or early stopping
@@ -262,8 +265,7 @@ bHIVE <- function(X,
     
     if (noImprovementCount >= noImprovementLimit) {
       if (verbose) {
-        cat("Early stopping due to no improvement for", noImprovementCount, 
-            "iterations.\n")
+        cat("Early stopping due to no improvement for", noImprovementCount, "iterations.\n")
       }
       break
     }
@@ -287,7 +289,6 @@ bHIVE <- function(X,
       antibody_classes[which.max(affinities)]
     })
   } else if (task == "regression") {
-    antibody_values <- runif(nAntibodies, min(y), max(y))
     assignments <- apply(X, 1, function(x) {
       affinities <- apply(A, 1, function(a) affFn(x, a, affinityParams))
       if (sum(affinities) == 0) {
@@ -300,6 +301,7 @@ bHIVE <- function(X,
   
   list(antibodies = A, assignments = assignments, task = task)
 }
+
 
 
 #Afinity Functions

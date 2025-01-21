@@ -242,6 +242,10 @@ honeycombHIVE <- function(X,
       rowIndices <- lapply(seq_len(n_original), function(i) i)
       names(rowIndices) <- rownames(X)
       if (!is.null(y)) current_y <- y
+      if (task == "classification") {
+        current_y <- as.factor(current_y)
+      }
+      
     } else {
       if (task == "classification" && !is.null(current_y)) {
         new_y <- rep(NA, nrow(current_X))
@@ -252,7 +256,7 @@ honeycombHIVE <- function(X,
           tb <- table(y_vals)
           new_y[k] <- names(tb)[which.max(tb)]
         }
-        current_y <- new_y
+        current_y <- as.factor(new_y)
       } else if (task == "regression" && !is.null(current_y)) {
         new_y <- rep(NA, nrow(current_X))
         nrn <- rownames(current_X)
