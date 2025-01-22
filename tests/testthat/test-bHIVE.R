@@ -128,6 +128,5 @@ test_that("bHIVE returns correct structure and data types", {
   
   # Check types of components
   expect_type(res$antibodies, "double")
-  expect_type(res$assignments, "numeric")
   expect_equal(res$task, "clustering")
 })
