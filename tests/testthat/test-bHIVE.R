@@ -97,7 +97,7 @@ test_that("bHIVE handles different initialization methods correctly", {
   data(iris)
   X <- as.matrix(iris[, 1:4])
   
-  init_methods <- c("sample", "random")
+  init_methods <- c("sample", "random", "random_uniform", "kmeans++")
   for (init in init_methods) {
     expect_silent(
       res <- bHIVE(X = X, 
@@ -117,7 +117,10 @@ test_that("bHIVE handles different initialization methods correctly", {
 test_that("bHIVE returns correct structure and data types", {
   data(iris)
   X <- as.matrix(iris[, 1:4])
-  res <- bHIVE(X = X, task = "clustering", nAntibodies = 10, maxIter = 5)
+  res <- bHIVE(X = X, 
+               task = "clustering", 
+               nAntibodies = 10, 
+               maxIter = 5)
   
   # Check structure
   expect_type(res, "list")
@@ -125,6 +128,6 @@ test_that("bHIVE returns correct structure and data types", {
   
   # Check types of components
   expect_type(res$antibodies, "double")
-  expect_type(res$assignments, "integer")
+  expect_type(res$assignments, "numeric")
   expect_equal(res$task, "clustering")
 })
