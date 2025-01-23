@@ -321,10 +321,6 @@ bHIVE <- function(X,
     }
     
     A <- A[keep, , drop = FALSE]
-    # IMPORTANT for regression:
-    if (task == "regression") {
-      antibody_values <- antibody_values[keep]
-    }
     
     # also remove unneeded classification/regression rows
     if (task == "classification") {
