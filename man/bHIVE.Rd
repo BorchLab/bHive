@@ -2,7 +2,7 @@
 % Please edit documentation in R/bHiVE.R
 \name{bHIVE}
 \alias{bHIVE}
-\title{bHIVE: B-cell-based Hybrid Immune Virtual Evolution}
+\title{bHIVE: B-cell Hybrid Immune Variant Engine}
 \usage{
 bHIVE(
   X,

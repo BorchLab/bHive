@@ -1,6 +1,6 @@
 #' B-cell-based Hybrid Immune Virtual Evolution (bHIVE) for caret
 #'
-#' A wrapper for integrating the B-cell-based Hybrid Immune Virtual Evolution 
+#' A wrapper for integrating the B-cell Hybrid Immune Variant Engine 
 #' (bHIVE) algorithm with the \code{caret} package. Supports both classification 
 #' and regression tasks, providing compatibility with \code{caret::train()} 
 #' for model training and validation.

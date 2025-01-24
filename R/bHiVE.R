@@ -1,4 +1,4 @@
-#' bHIVE: B-cell-based Hybrid Immune Virtual Evolution 
+#' bHIVE: B-cell Hybrid Immune Variant Engine
 #'
 #' Implements an artificial immune network algorithm for clustering, classification, 
 #' and regression tasks. The algorithm evolves a population of "antibodies" 
