@@ -124,3 +124,172 @@ test_that("honeycombHIVE handles different distance functions", {
   }
 })
 
+test_that("honeycombHIVE refine=TRUE for classification with cross-entropy", {
+  data(iris)
+  X <- as.matrix(iris[,1:4])
+  y <- iris$Species
+  
+  # Compare refine=FALSE vs. refine=TRUE
+  res_no_ref <- honeycombHIVE(
+    X = X,
+    y = y,
+    task = "classification",
+    layers = 2,
+    nAntibodies = 10,
+    maxIter = 5,
+    verbose = FALSE,
+    refine = FALSE
+  )
+  
+  res_ref <- honeycombHIVE(
+    X = X,
+    y = y,
+    task = "classification",
+    layers = 2,
+    nAntibodies = 10,
+    maxIter = 5,
+    verbose = FALSE,
+    refine = TRUE,
+    refineLoss = "categorical_crossentropy",
+    refineSteps = 3,
+    refineLR = 0.05,
+    refinePushAway = TRUE
+  )
+  
+  # Check structure
+  expect_length(res_ref, 2)
+  for (layer_obj in res_ref) {
+    expect_named(layer_obj, c("antibodies","assignments","task",
+                              "predictions","membership"))
+    expect_true(is.data.frame(layer_obj$antibodies))
+  }
+  
+  # Check that the final prototypes differ
+  final_no_ref <- res_no_ref[[2]]$antibodies
+  final_ref    <- res_ref[[2]]$antibodies
+  expect_false(isTRUE(all.equal(final_no_ref, final_ref)))
+  
+  preds_no_ref <- res_no_ref[[2]]$predictions
+  preds_ref    <- res_ref[[2]]$predictions
+})
+
+test_that("honeycombHIVE refine=TRUE for regression (MSE)", {
+  if (!requireNamespace("MASS", quietly = TRUE)) install.packages("MASS")
+  library(MASS)
+  data(Boston)
+  X <- as.matrix(Boston[, -14])
+  y <- Boston$medv
+  
+  # Without refine
+  res_no_ref <- honeycombHIVE(
+    X = X,
+    y = y,
+    task = "regression",
+    layers = 2,
+    nAntibodies = 10,
+    maxIter = 5,
+    verbose = FALSE,
+    refine = FALSE
+  )
+  
+  # With refine
+  res_ref <- honeycombHIVE(
+    X = X,
+    y = y,
+    task = "regression",
+    layers = 2,
+    nAntibodies = 10,
+    maxIter = 5,
+    verbose = FALSE,
+    refine = TRUE,
+    refineLoss = "mse",
+    refineSteps = 5,
+    refineLR = 0.01
+  )
+  
+  # Check structure
+  expect_length(res_ref, 2)
+  for (ly in res_ref) {
+    expect_named(ly, c("antibodies","assignments","task","predictions","membership"))
+    expect_equal(ly$task, "regression")
+    expect_true(is.data.frame(ly$antibodies))
+  }
+  
+  # Compare final prototypes
+  final_no_ref <- res_no_ref[[2]]$antibodies
+  final_ref    <- res_ref[[2]]$antibodies
+  expect_false(isTRUE(all.equal(final_no_ref, final_ref)))
+})
+
+test_that("honeycombHIVE refineSteps=0 does not change prototypes", {
+  data(iris)
+  X <- as.matrix(iris[,1:4])
+  
+  # refine=TRUE but steps=0 => effectively no gradient updates
+  res_steps0 <- honeycombHIVE(
+    X = X,
+    task = "clustering",
+    layers = 1,
+    nAntibodies = 8,
+    maxIter = 3,
+    verbose = FALSE,
+    refine = TRUE,
+    refineLoss = "mae",
+    refineSteps = 0,  # no actual refinement
+    refineLR = 0.1
+  )
+  
+  # normal refineSteps>0
+  res_steps5 <- honeycombHIVE(
+    X = X,
+    task = "clustering",
+    layers = 1,
+    nAntibodies = 8,
+    maxIter = 3,
+    verbose = FALSE,
+    refine = TRUE,
+    refineLoss = "mae",
+    refineSteps = 5,
+    refineLR = 0.1
+  )
+  
+  # Compare final prototypes
+  no_refine <- honeycombHIVE(
+    X = X,
+    task = "clustering",
+    layers = 1,
+    nAntibodies = 8,
+    maxIter = 3,
+    verbose = FALSE,
+    refine = FALSE
+  )
+  
+  prot_steps0 <- res_steps0[[1]]$antibodies
+  prot_steps5 <- res_steps5[[1]]$antibodies
+  prot_no_ref <- no_refine[[1]]$antibodies
+  
+  diff0 <- sum(abs(as.matrix(prot_steps0) - as.matrix(prot_no_ref)))
+  diff5 <- sum(abs(as.matrix(prot_steps5) - as.matrix(prot_no_ref)))
+  expect_true(diff0 < diff5,
+              info="Refinement steps=0 should yield prototypes closer to no_refine than steps=5.")
+})
+
+test_that("honeycombHIVE fails gracefully with invalid refineLoss for given task", {
+  data(iris)
+  X <- as.matrix(iris[,1:4])
+  y <- iris$Species
+  
+  expect_error({
+    honeycombHIVE(
+      X = X,
+      y = y,
+      task = "classification",
+      layers = 1,
+      refine = TRUE,
+      refineLoss = "huber",  # presumably invalid for classification
+      refineSteps = 3,
+      refineLR = 0.01,
+      verbose = FALSE
+    )
+  }, regexp="For classification, loss must be one of|.*huber.*not.*supported")
+})
