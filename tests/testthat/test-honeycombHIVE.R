@@ -235,7 +235,7 @@ test_that("honeycombHIVE refineSteps=0 does not change prototypes", {
     verbose = FALSE,
     refine = TRUE,
     refineLoss = "mae",
-    refineSteps = 0,  # no actual refinement
+    refineSteps = 0,  
     refineLR = 0.1
   )
   
@@ -286,10 +286,221 @@ test_that("honeycombHIVE fails gracefully with invalid refineLoss for given task
       task = "classification",
       layers = 1,
       refine = TRUE,
-      refineLoss = "huber",  # presumably invalid for classification
+      refineLoss = "huber",  
       refineSteps = 3,
       refineLR = 0.01,
       verbose = FALSE
     )
   }, regexp="For classification, loss must be one of|.*huber.*not.*supported")
+})
+
+test_that("honeycombHIVE clustering works with refine=TRUE, default refineLoss=mae", {
+  data(iris)
+  X <- as.matrix(iris[, 1:4])
+  
+  # refine=FALSE => normal honeycombHIVE
+  res_no_ref <- honeycombHIVE(
+    X = X,
+    task = "clustering",
+    layers = 2,
+    nAntibodies = 8,
+    maxIter = 5,
+    refine = FALSE,
+    verbose = FALSE
+  )
+  
+  # refine=TRUE => add refine step
+  res_ref <- honeycombHIVE(
+    X = X,
+    task = "clustering",
+    layers = 2,
+    nAntibodies = 8,
+    maxIter = 5,
+    refine = TRUE,            
+    refineLoss = "mae",       
+    refineSteps = 3,
+    refineLR = 0.01,
+    verbose = FALSE
+  )
+  
+  # Check structure
+  expect_length(res_ref, 2)  # 2 layers
+  for (layer_obj in res_ref) {
+    expect_true("antibodies" %in% names(layer_obj))
+    expect_true("assignments" %in% names(layer_obj))
+    expect_true("membership"  %in% names(layer_obj))
+    expect_equal(layer_obj$task, "clustering")
+  }
+  
+  # Compare final prototypes 
+  final_no_ref <- res_no_ref[[2]]$antibodies
+  final_ref    <- res_ref[[2]]$antibodies
+  # Usually not identical
+  expect_false(isTRUE(all.equal(final_no_ref, final_ref)))
+})
+
+test_that("honeycombHIVE classification: refine=TRUE with cross_entropy", {
+  data(iris)
+  X <- as.matrix(iris[, 1:4])
+  y <- iris$Species
+  
+  # Non-refined
+  res_no_ref <- honeycombHIVE(
+    X = X,
+    y = y,
+    task = "classification",
+    layers = 2,
+    nAntibodies = 10,
+    maxIter = 5,
+    refine = FALSE,
+    verbose = FALSE
+  )
+  
+  # Refined with cross-entropy
+  res_ref <- honeycombHIVE(
+    X = X,
+    y = y,
+    task = "classification",
+    layers = 2,
+    nAntibodies = 10,
+    maxIter = 5,
+    refine = TRUE,
+    refineLoss = "categorical_crossentropy",
+    refineSteps = 4,
+    refineLR = 0.01,
+    refinePushAway = TRUE,
+    verbose = FALSE
+  )
+  
+  # Structure checks
+  expect_length(res_ref, 2)
+  for (ly in res_ref) {
+    expect_equal(ly$task, "classification")
+    expect_true(is.data.frame(ly$antibodies))
+    # We also expect "assignments", "predictions", "membership"
+    expect_true("assignments" %in% names(ly))
+    expect_true("membership"  %in% names(ly))
+  }
+  
+  # Compare final layer prototypes
+  final_no_ref <- res_no_ref[[2]]$antibodies
+  final_ref    <- res_ref[[2]]$antibodies
+  expect_false(isTRUE(all.equal(final_no_ref, final_ref)))
+})
+
+test_that("honeycombHIVE regression: refine=TRUE with mse refineLoss", {
+  if (!requireNamespace("MASS", quietly=TRUE)) {
+    install.packages("MASS")
+  }
+  library(MASS)
+  data(Boston)
+  
+  X <- as.matrix(Boston[, -14])
+  y <- Boston$medv
+  
+  # Non-refined 
+  res_no_ref <- honeycombHIVE(
+    X = X,
+    y = y,
+    task = "regression",
+    layers = 2,
+    nAntibodies = 10,
+    maxIter = 5,
+    refine = FALSE,
+    verbose = FALSE
+  )
+  
+  # Refined
+  res_ref <- honeycombHIVE(
+    X = X,
+    y = y,
+    task = "regression",
+    layers = 2,
+    nAntibodies = 10,
+    maxIter = 5,
+    refine = TRUE,
+    refineLoss = "mse",
+    refineSteps = 3,
+    refineLR = 0.005,
+    verbose = FALSE
+  )
+  
+  # Check structure
+  expect_length(res_ref, 2)
+  for (ly in res_ref) {
+    expect_true("antibodies"  %in% names(ly))
+    expect_true("assignments" %in% names(ly))   
+    expect_true("predictions" %in% names(ly))   
+    expect_true("membership"  %in% names(ly))
+    expect_equal(ly$task, "regression")
+  }
+  
+  # Compare final prototypes
+  final_no_ref <- res_no_ref[[2]]$antibodies
+  final_ref    <- res_ref[[2]]$antibodies
+  expect_false(isTRUE(all.equal(final_no_ref, final_ref)))
+  
+})
+
+test_that("honeycombHIVE refineSteps=0 yields same result as refine=FALSE", {
+  data(iris)
+  X <- as.matrix(iris[,1:4])
+  
+  # refine=FALSE
+  res_no_ref <- honeycombHIVE(
+    X = X,
+    task = "clustering",
+    layers = 1,
+    nAntibodies = 6,
+    maxIter = 3,
+    refine = FALSE,
+    verbose = FALSE
+  )
+  
+  res_steps0 <- honeycombHIVE(
+    X = X,
+    task = "clustering",
+    layers = 1,
+    nAntibodies = 6,
+    maxIter = 3,
+    refine = TRUE,
+    refineLoss = "mse",   
+    refineSteps = 0,
+    refineLR = 0.01,
+    verbose = FALSE
+  )
+  
+  # Compare final prototypes
+  final_no_ref <- res_no_ref[[1]]$antibodies
+  final_steps0 <- res_steps0[[1]]$antibodies
+  
+  # If you do random seeds, you can set a seed to ensure identical. If not, do a tolerance check:
+  expect_equal(final_no_ref, final_steps0, tolerance=1e-14)
+})
+
+test_that("honeycombHIVE refineLoss mismatch: attempts cross_entropy in regression => should error or fallback", {
+  if (!requireNamespace("MASS", quietly=TRUE)) {
+    install.packages("MASS")
+  }
+  library(MASS)
+  data(Boston)
+  X <- as.matrix(Boston[, -14])
+  y <- Boston$medv
+  
+  expect_error(
+    honeycombHIVE(
+      X = X,
+      y = y,
+      task = "regression",
+      layers = 1,
+      nAntibodies = 5,
+      maxIter = 2,
+      refine = TRUE,
+      refineLoss = "categorical_crossentropy",
+      refineSteps = 2,
+      refineLR = 0.01,
+      verbose = FALSE
+    ),
+    regexp="some.*error.*cross_entropy.*not.*valid.*regression"
+  )
 })

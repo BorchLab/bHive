@@ -191,9 +191,6 @@ res <- bHIVE(X = X,
              initMethod = "kmeans++",
              verbose = FALSE)
 
-# Compare predicted vs actual
-cor(res$assignments, y)
-
 # Visualize regression results
 Boston$Predicted <- res$assignments
 ggplot(Boston, aes(x = y, y = Predicted)) +
@@ -417,17 +414,19 @@ y <- Boston$medv
 res_reg <- honeycombHIVE(X = X,
                          y = y,
                          task = "regression",
+                         initMethod = "kmeans++",
                          epsilon = 0.05,
                          layers = 3, 
                          nAntibodies = 30, 
                          beta = 5, 
                          maxIter = 10,
-                         refine = FALSE
+                         refine = FALSE,
                          verbose = FALSE)
 
 res_reg_refine <- honeycombHIVE(X = X,
                                 y = y,
                                 task = "regression",
+                                initMethod = "kmeans++",
                                 epsilon = 0.05,
                                 layers = 3, 
                                 nAntibodies = 30, 
@@ -439,11 +438,24 @@ res_reg_refine <- honeycombHIVE(X = X,
                                 refineLR = 0.01,            
                                 verbose = FALSE)
 
-# Inspect results
-str(res_clust_refine)
-# Each layer: $antibodies, $assignments, $membership, ...
-# The prototypes at each layer have been refined in feature space.
-# We can examine the final cluster membership or any silhouette metrics, etc.
+Boston$Predicted <- res_reg[[3]]$predictions
+Boston$Predicted_Refined <- res_reg_refine[[3]]$predictions
+
+ggplot(Boston, aes(x = y, y = Predicted)) +
+    geom_point() +
+    geom_smooth(method = "lm", color = "blue", se = FALSE) +
+    labs(title = "Regression Results with bHIVE", 
+         x = "Actual Values (medv)", 
+         y = "Predicted Values") +
+    theme_minimal()
+
+ggplot(Boston, aes(x = y, y = Predicted_Refined)) +
+    geom_point() +
+    geom_smooth(method = "lm", color = "blue", se = FALSE) +
+    labs(title = "Regression Results with bHIVE", 
+         x = "Actual Values (medv)", 
+         y = "Predicted Values") +
+    theme_minimal()
 ```
 
 # Conclusions

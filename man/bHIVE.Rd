@@ -103,14 +103,15 @@ consider cloning for each data point.}
 iteration.}
 }
 \value{
-A list containing:
+A list:
   \itemize{
-    \item \code{antibodies}: A matrix of the final antibody vectors in the 
-    repertoire.
-    \item \code{assignments}: Cluster assignments (for clustering), predicted
-     labels (classification), or predicted values (regression).
-    \item \code{task}: The type of task performed (\code{"clustering"}, 
-    \code{"classification"}, \code{"regression"}).
+    \item \code{antibodies}: Final antibody vectors (nAntibodies x nFeatures).
+    \item \code{assignments}: 
+        - For clustering: integer cluster IDs in [1..#Antibodies].
+        - For classification: predicted labels.
+        - For regression: integer cluster index (in [1..#Antibodies]) if used in synergy with \code{refineB}.
+    \item \code{predictions}: Only for regression, the numeric predictions per row.
+    \item \code{task}: The chosen task.
   }
 }
 \description{

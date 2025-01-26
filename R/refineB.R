@@ -50,12 +50,14 @@
 #' @return The updated matrix A of shape (nAb x d).
 #'
 #' @export
-refineB <- function(A, X, y = NULL,
+refineB <- function(A, 
+                    X, 
+                    y = NULL,
                     assignments,
                     task = c("clustering","classification","regression"),
                     loss = c("categorical_crossentropy","binary_crossentropy",
                              "kullback_leibler","cosine",
-                             "mse","mae","poisson","huber")
+                             "mse","mae","poisson","huber"),
                     steps = 5,
                     lr = 0.01,
                     push_away = TRUE,

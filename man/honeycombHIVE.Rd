@@ -63,14 +63,14 @@ calculation. Default \code{"euclidean"}.}
 \item{verbose}{Logical, whether to print progress at each layer.}
 
 \item{refine}{Logical. If TRUE, apply gradient-based refinement to each 
-layer's antibody positions via \code{refinePrototypes()}.}
+layer's antibody positions via \code{refineB()}.}
 
 \item{refineLoss}{Character specifying the loss function if \code{refine=TRUE}.
 e.g. "mse","mae","categorical_crossentropy","binary_crossentropy","huber",
 "kullback_leibler", etc.}
 
 \item{refineSteps}{Integer. Number of gradient steps in 
-\code{refinePrototypes()}.}
+\code{refineB()}.}
 
 \item{refineLR}{Numeric. Learning rate for gradient updates.}
 

@@ -7,11 +7,11 @@
 refineB(
   A,
   X,
-  y,
+  y = NULL,
   assignments,
+  task = c("clustering", "classification", "regression"),
   loss = c("categorical_crossentropy", "binary_crossentropy", "kullback_leibler",
     "cosine", "mse", "mae", "poisson", "huber"),
-  task = c("classification", "regression"),
   steps = 5,
   lr = 0.01,
   push_away = TRUE,
@@ -19,32 +19,31 @@ refineB(
 )
 }
 \arguments{
-\item{A}{A matrix of antibody positions (nAntibodies x nFeatures).}
+\item{A}{Matrix (nAb x d) of antibody/prototype positions.}
 
-\item{X}{A matrix or data frame of data (nSamples x nFeatures).}
+\item{X}{Matrix or data frame (nSamples x d) of feature data.}
 
-\item{y}{The target vector. For classification, a factor; for regression, numeric.}
+\item{y}{Optional. Factor (classification), numeric (regression), or NULL (clustering).}
 
-\item{assignments}{Integer vector of length nSamples giving the antibody index
-that each sample is assigned to (i.e. from \code{which.max(affinity)}).}
+\item{assignments}{Integer vector (length=nSamples), specifying the antibody index
+each sample belongs to (1..nAb).}
 
-\item{loss}{Character. One of:
-- classification: "categorical_crossentropy", "binary_crossentropy", "kullback_leibler", "cosine"
-- regression: "mse", "mae", "poisson", "huber"}
+\item{task}{One of c("clustering","classification","regression").}
 
-\item{task}{Either "classification" or "regression".}
+\item{loss}{One of c("mse","mae","cross_entropy","huber","poisson","kullback_leibler","cosine"),
+or any custom approach you'd like to code.}
 
-\item{steps}{How many gradient steps to run.}
+\item{steps}{Integer. How many gradient steps to run.}
 
-\item{lr}{Learning rate for the gradient updates.}
+\item{lr}{Numeric. Learning rate for each update.}
 
-\item{push_away}{Logical (classification only). If `TRUE`, prototypes are pushed away
-from points with different labels. If `FALSE`, we only pull toward same-label points.}
+\item{push_away}{Logical (classification only). Whether to push prototypes away
+from differently-labeled samples.}
 
-\item{huber_delta}{Numeric, used for the "huber" loss threshold.}
+\item{huber_delta}{Numeric. The delta threshold if using huber loss.}
 }
 \value{
-A refined (updated) version of A with the same dimensions.
+The updated matrix A of shape (nAb x d).
 }
 \description{
 After running bHIVE (or honeycombHIVE), you have a set of final antibody positions (A)
@@ -53,15 +52,15 @@ data points assigned to each antibody and applying small gradient-based updates
 according to a user-chosen loss function.
 }
 \details{
-## Classification vs. Regression
-- **Classification**: The function pushes each antibody closer to data points of
-  its "dominant" label, and optionally pushes it away from points of other labels.
-  Multiple loss functions are conceptually adapted (naively) to prototype movement
-  in feature space.
-- **Regression**: The function pulls each antibody closer to the data points it
-  represents, based on an approximate gradient for the chosen numeric loss (e.g. MSE, MAE).
-
-## Available Losses
+The user must provide:
+- A numeric matrix \code{A} of antibody/prototype positions (nAb x nFeatures).
+- A numeric matrix/data frame \code{X} of data (nSamples x nFeatures).
+- Optional \code{y} for classification/regression. If \code{task="clustering"},
+  \code{y} can be NULL or ignored.
+- An integer vector \code{assignments} (length = nSamples) giving the
+  antibody index to which each data point is assigned (range 1..nAb).
+  
+  ## Available Losses
 
 ### Classification (factor y)
 - **"categorical_crossentropy"**: Pull prototypes toward data points if they share
@@ -81,39 +80,4 @@ according to a user-chosen loss function.
   (pred - y)/pred if we stored a predicted rate; here we do a naive version).
 - **"huber"**: Combines L1 and L2 regions, uses a delta cutoff. We adapt it
   to a naive per-point gradient in feature space.
-
-In reality, each loss function is adapted in a **toy** manner to prototype
-movement in feature space. True gradient-based training might require separate
-parameters for the predicted label or value. This function demonstrates how you can
-incorporate a variety of loss functions if you treat the **prototype** as a parameter
-to be updated.
-}
-\examples{
-X <- as.matrix(iris[, 1:4])  # Numeric features only
-
-# Runnning bHIVE Classification
-y <- iris$Species
-res <- bHIVE(X = X, 
-              y = y, 
-              task = "classification", 
-              nAntibodies = 30, 
-              beta = 5, 
-              epsilon = 0.01, 
-              maxIter = 20, 
-              k = 3, 
-              verbose = FALSE)
-              
- A <- res_bhive$antibodies
- assignments <- res_bhive$assignments 
-
-#Refining Antibodies/Bees              
-refineB(A,
-                 X, 
-                 y, 
-                 assignments,
-                 loss="mse", 
-                 task="regression", 
-                 steps=5, 
-                 lr=0.01)
-
 }
