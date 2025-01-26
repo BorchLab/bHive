@@ -33,12 +33,12 @@
 #' calculation. Default \code{"euclidean"}.
 #' @param verbose Logical, whether to print progress at each layer.
 #' @param refine Logical. If TRUE, apply gradient-based refinement to each 
-#' layer's antibody positions via \code{refinePrototypes()}.
+#' layer's antibody positions via \code{refineB()}.
 #' @param refineLoss Character specifying the loss function if \code{refine=TRUE}.
 #'   e.g. "mse","mae","categorical_crossentropy","binary_crossentropy","huber",
 #'   "kullback_leibler", etc.
 #' @param refineSteps Integer. Number of gradient steps in 
-#' \code{refinePrototypes()}.
+#' \code{refineB()}.
 #' @param refineLR Numeric. Learning rate for gradient updates.
 #' @param refinePushAway Logical. If TRUE (classification only), push 
 #' prototypes away
@@ -158,22 +158,17 @@ honeycombHIVE <- function(X,
     
     res_layer <- do.call(bHIVE, bHIVE_args)
     
-    # 2) (Optional) refinePrototypes step
+    # 2) refineB step
     if (refine) {
-      # We'll pass the final antibodies from bHIVE, the assignments, plus
-      # refineLoss, refineSteps, refineLR, etc.
       
-      # Note: 'assignments' here are for the layer's data, not the original data.
-      # So we refine the same positions we just found.
+      # 'assignments' here are for the layer's data, not the original data.
       assignments_layer <- res_layer$assignments
       if (task == "clustering") {
-        # 'y' is NULL or irrelevant, but refinePrototypes can still do naive pulling.
-        # We'll pass a dummy numeric or factor if needed. 
         # For pure clustering, a simple approach is to treat everything as same label
         # or skip the push_away logic. Let's do a toy approach:
         
         fake_y <- rep(1, nrow(current_X))
-        new_A <- refinePrototypes(
+        new_A <- refineB(
           A = res_layer$antibodies,
           X = current_X,
           y = fake_y,  # dummy
@@ -187,7 +182,7 @@ honeycombHIVE <- function(X,
         )
       } else {
         # classification or regression
-        new_A <- refinePrototypes(
+        new_A <- refineB(
           A = res_layer$antibodies,
           X = current_X,
           y = current_y,

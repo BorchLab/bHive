@@ -322,6 +322,123 @@ for (i in seq_along(res)) {
 ```
 Note: If you use `task = "classification"` or `task = "regression"`, honeycombHIVE will generate multi-layer predictions. You can compare each layer’s predictions against the true labels/outcomes to see if performance improves or if the data become too collapsed.
 
+## Gradient-based Refinement
+
+The ```refineB()``` function can further tune or adjust the antibody prototypes learned by the ```bHIVE()``` algorithm. In particular:
+
+* **loss**: The loss function used to guide refinement. For a classification task, `"categorical_crossentropy"` is a typical choice.
+* **steps**: The number of gradient-based updates.
+* **lr**: The learning rate used in each gradient update step.
+
+```{r}
+X <- as.matrix(iris[, 1:4])
+y <- iris$Species
+
+# Perform classification
+set.seed(42)
+res <- bHIVE(X = X, 
+             y = y, 
+             task = "classification", 
+             nAntibodies = 10, 
+             beta = 5, 
+             epsilon = 0.05, 
+             initMethod = "random",
+             k = 4,
+             verbose = FALSE)
+
+Ab <- res$antibodies
+colnames(Ab) <- colnames(X)
+assignments <- res$assignments 
+
+assignments <- as.integer(factor(res$assignments , levels = unique(res$assignments )))
+
+# Refining Antibodies
+Ab_refined <- refineB(A = Ab,
+                      X = X, 
+                      y = y,
+                      assignments = assignments,
+                      loss="categorical_crossentropy", 
+                      task="classification", 
+                      steps=5, 
+                      lr=0.01)
+colnames(Ab_refined) <- colnames(X)
+
+# PCA for the Iris data set
+pca <- prcomp(X, scale.=TRUE)
+X_pca <- pca$x[,1:2]        
+colnames(X_pca) <- c("PC1","PC2")
+
+# Antibodies in PCA space
+A_bhive_pca   <- predict(pca, Ab)
+A_refined_pca <- predict(pca, Ab_refined)
+
+# Build a data frame for ggplot
+plot_data <- data.frame(PC1 = X_pca[,1],
+                        PC2 = X_pca[,2],
+                        Cluster = factor(assignments))
+
+proto_df <- data.frame(PC1_before = A_bhive_pca[,1],
+                       PC2_before = A_bhive_pca[,2],
+                       PC1_after  = A_refined_pca[,1],
+                       PC2_after  = A_refined_pca[,2],
+                       ID = 1:nrow(A_bhive_pca))
+
+ggplot() +
+  geom_point(data=plot_data, 
+             aes(x=PC1, y=PC2, color=Cluster), alpha=0.6) +
+  geom_point(data=proto_df, #Original Antibodies
+             aes(x=PC1_before, y=PC2_before),
+             color="#440154", size=4) +
+  geom_point(data=proto_df, #New Antibodies
+              aes(x=PC1_after, y=PC2_after),
+              color="#FDE725", size=4) +
+  geom_segment(data=proto_df,
+               aes(x=PC1_before, y=PC2_before, xend=PC1_after,
+                   yend=PC2_after),
+                   arrow = arrow(length=unit(0.2,"cm"), type = "closed"),
+               color="black", size=1, lwd = 0.5) + 
+  scale_color_viridis(discrete = TRUE) + 
+  labs(title="bHIVE vs. refineB\n(antibodies in PCA space)") +
+  theme_minimal()
+```
+
+**Interpretation**
+* Each **dot** in PCA space represents a **sample** from the Iris dataset, colored by its assigned antibody or cluster (`assignments`).
+- The **purple points** are the **initial** antibody positions.
+- The **yellow points** show the **refined** positions ```refineB()````.
+- The **black arrows** illustrate how each antibody has been updated in feature space to improve its representation/classification performance based on the selected loss function.
+
+Adjust **`steps`** and **`lr`** for different refinement aggressiveness:
+* **`steps`**: More steps will iterate the refinement further, potentially converging the antibodies closer to local minima in the chosen loss landscape.
+* **`lr`**: A larger learning rate moves antibodies more rapidly but risks overshooting. A smaller learning rate refines more cautiously and may require additional steps.
+
+
+```{r honeycomb-refine-clustering, eval=FALSE}
+res_clust_refine <- honeycombHIVE(
+  X = X,
+  y = y,
+  task = "classification",
+  epsilon = 0.05,
+  layers = 3, 
+  nAntibodies = 30, 
+  beta = 5, 
+  maxIter = 10,
+  refine = TRUE,              # turn on refinement
+  refineLoss = "mae",         # naive absolute error approach in feature space
+  refineSteps = 3,            # 3 gradient steps
+  refineLR = 0.01,            # small learning rate
+  verbose = FALSE
+)
+
+# Inspect results
+str(res_clust_refine)
+# Each layer: $antibodies, $assignments, $membership, ...
+# The prototypes at each layer have been refined in feature space.
+# We can examine the final cluster membership or any silhouette metrics, etc.
+```
+
+**Note**: In a real scenario, you might do a train/test split or cross-validation to properly assess performance. The “mse” approach used here is a naive pulling of the prototypes in feature space; if storing numeric “antibody_values,” you could incorporate the difference in y more explicitly as well.
+
 # Conclusions
 
 The `bHIVE` package is a versatile tool for clustering, classification, and regression tasks. Its integration with caret simplifies hyperparameter tuning and cross-validation, making it suitable for a variety of datasets and use cases. If you have any questions, comments, or suggestions, please visit the [GitHub repository](https://github.com/ncborcherding/bHIVE).
