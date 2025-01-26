@@ -404,31 +404,40 @@ ggplot() +
 
 **Interpretation**
 * Each **dot** in PCA space represents a **sample** from the Iris dataset, colored by its assigned antibody or cluster (`assignments`).
-- The **purple points** are the **initial** antibody positions.
-- The **yellow points** show the **refined** positions ```refineB()````.
-- The **black arrows** illustrate how each antibody has been updated in feature space to improve its representation/classification performance based on the selected loss function.
+* The **purple points** are the **initial** antibody positions.
+* The **yellow points** show the **refined** positions ```refineB()````.
+* The **black arrows** illustrate how each antibody has been updated in feature space to improve its performance based on the selected loss function.
 
-Adjust **`steps`** and **`lr`** for different refinement aggressiveness:
-* **`steps`**: More steps will iterate the refinement further, potentially converging the antibodies closer to local minima in the chosen loss landscape.
-* **`lr`**: A larger learning rate moves antibodies more rapidly but risks overshooting. A smaller learning rate refines more cautiously and may require additional steps.
-
+**Applying Refinement to honeycombHIVE**
 
 ```{r honeycomb-refine-clustering, eval=FALSE}
-res_clust_refine <- honeycombHIVE(
-  X = X,
-  y = y,
-  task = "classification",
-  epsilon = 0.05,
-  layers = 3, 
-  nAntibodies = 30, 
-  beta = 5, 
-  maxIter = 10,
-  refine = TRUE,              # turn on refinement
-  refineLoss = "mae",         # naive absolute error approach in feature space
-  refineSteps = 3,            # 3 gradient steps
-  refineLR = 0.01,            # small learning rate
-  verbose = FALSE
-)
+X <- as.matrix(Boston[, -14])
+y <- Boston$medv
+
+res_reg <- honeycombHIVE(X = X,
+                         y = y,
+                         task = "regression",
+                         epsilon = 0.05,
+                         layers = 3, 
+                         nAntibodies = 30, 
+                         beta = 5, 
+                         maxIter = 10,
+                         refine = FALSE
+                         verbose = FALSE)
+
+res_reg_refine <- honeycombHIVE(X = X,
+                                y = y,
+                                task = "regression",
+                                epsilon = 0.05,
+                                layers = 3, 
+                                nAntibodies = 30, 
+                                beta = 5, 
+                                maxIter = 10,
+                                refine = TRUE,             
+                                refineLoss = "mse",        
+                                refineSteps = 3,           
+                                refineLR = 0.01,            
+                                verbose = FALSE)
 
 # Inspect results
 str(res_clust_refine)
@@ -436,8 +445,6 @@ str(res_clust_refine)
 # The prototypes at each layer have been refined in feature space.
 # We can examine the final cluster membership or any silhouette metrics, etc.
 ```
-
-**Note**: In a real scenario, you might do a train/test split or cross-validation to properly assess performance. The “mse” approach used here is a naive pulling of the prototypes in feature space; if storing numeric “antibody_values,” you could incorporate the difference in y more explicitly as well.
 
 # Conclusions
 
