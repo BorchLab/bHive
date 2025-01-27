@@ -75,7 +75,7 @@ test_that("bHIVE works with different tasks", {
                      verbose = FALSE)
   )
   expect_type(res_reg, "list")
-  expect_named(res_reg, c("antibodies", "assignments", "task"))
+  expect_named(res_reg, c("antibodies", "assignments", "predictions", "task"))
   expect_equal(length(res_reg$assignments), nrow(X))
   
   # Clustering
@@ -120,7 +120,8 @@ test_that("bHIVE returns correct structure and data types", {
   res <- bHIVE(X = X, 
                task = "clustering", 
                nAntibodies = 10, 
-               maxIter = 5)
+               maxIter = 5, 
+               verbose = FALSE)
   
   # Check structure
   expect_type(res, "list")

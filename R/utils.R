@@ -30,7 +30,7 @@
   task <- match.arg(task)
   loss <- match.arg(loss)
   
-  # Precompute
+  # must return a numeric vector of length = length(ab_vec)
   d <- length(ab_vec)
   zero_vec <- numeric(d)          # a zero vector for quick returns
   pull_vec <- x_i - ab_vec        # pulling ab_vec toward x_i

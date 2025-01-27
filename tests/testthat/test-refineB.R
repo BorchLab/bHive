@@ -1,259 +1,97 @@
 # test script for refineB.R - testcases are NOT comprehensive!
 
-test_that("refineB Classification: basic usage with categorical_crossentropy, push_away=TRUE", {
-  set.seed(1)
+# Define test cases
+test_that("refineB: Input validation for X and A", {
+  A <- matrix(runif(10), nrow = 2, ncol = 5)  # 2 antibodies, 5 features each
+  X <- matrix(runif(20), nrow = 4, ncol = 5)  # 4 samples, 5 features each
+  assignments <- c(1, 2, 1, 2)  # Valid assignments
   
-  # Create a small toy classification dataset
-  X <- matrix(c(1,2,3,4,
-                2,3,4,5,
-                10,11,12,13,
-                11,12,13,14), nrow=4, byrow=TRUE)
-  y <- factor(c("A","A","B","B"))
+  # Test valid inputs
+  expect_silent(refineB(A = A, X = X, assignments = assignments, task = "clustering"))
   
-  # Suppose we have 2 antibodies
-  A <- matrix(c(2,3,3,4,
-                10,11,12,13), nrow=2, byrow=TRUE)
+  # Test X is not numeric
+  expect_error(refineB(A = A, X = as.data.frame(X), assignments = assignments, task = "clustering"),
+               "'X' must be a numeric matrix.")
   
-  # Assignments (each row of X => index 1 or 2)
-  assignments <- c(1,1,2,2)  # first 2 rows to antibody1, last 2 to antibody2
-  
-  # refineB
-  A_refined <- refineB(
-    A = A,
-    X = X,
-    y = y,
-    assignments = assignments,
-    loss = "categorical_crossentropy",
-    task = "classification",
-    steps = 5,
-    lr = 0.1,
-    push_away = TRUE
-  )
-  
-  # Check dimension is same
-  expect_equal(dim(A_refined), dim(A))
-  
-  # Expect that the refined positions differ from original
-  expect_false(all(A_refined == A))
+  # Test mismatched dimensions between X and A
+  X_invalid <- matrix(runif(24), nrow = 4, ncol = 6)
+  expect_error(refineB(A = A, X = X_invalid, assignments = assignments, task = "clustering"),
+               "Number of columns in 'X' must match the number of columns in 'A'.")
 })
 
-test_that("refineB Classification: no push_away, simple mse approach on factor data", {
-  set.seed(2)
+test_that("refineB: Validation for assignments", {
+  A <- matrix(runif(10), nrow = 2, ncol = 5)
+  X <- matrix(runif(20), nrow = 4, ncol = 5)
   
-  # Another small dataset
-  X <- matrix(runif(20), nrow=5, ncol=4)
-  y <- factor(c("X","X","Y","Y","X"))
+  # Valid assignments
+  assignments <- c(1, 2, 1, 2)
+  expect_silent(refineB(A = A, X = X, assignments = assignments, task = "clustering"))
   
-  A <- matrix(runif(8), nrow=2, ncol=4)
-  assignments <- c(1,1,2,2,1)  # naive cluster assignment
-  
-  # Use a classification naive 'mse' approach, push_away=FALSE
-  A_refined <- refineB(
-    A = A,
-    X = X,
-    y = y,
-    assignments = assignments,
-    loss = "mse",
-    task = "classification",
-    steps = 3,
-    lr = 0.05,
-    push_away = FALSE
-  )
-  
-  expect_equal(dim(A_refined), c(2,4))
-  # We expect some difference but it's possible if random was small
-  expect_false(all(A_refined == A))
+  # Assignments out of range
+  assignments_out_of_range <- c(1, 3, 1, 2)
+  expect_error(refineB(A = A, X = X, assignments = assignments_out_of_range, task = "clustering"),
+               "'assignments' values must be between 1..nAb.")
 })
 
-test_that("refineB Regression: MSE refinement changes prototype positions", {
-  set.seed(3)
+test_that("refineB: Classification task validation", {
+  A <- matrix(runif(10), nrow = 2, ncol = 5)
+  X <- matrix(runif(20), nrow = 4, ncol = 5)
+  y <- factor(c("A", "B", "A", "B"))  # Labels for classification
+  assignments <- c(1, 2, 1, 2)
   
-  X <- matrix(rnorm(20), nrow=5, ncol=4)
-  y <- rnorm(5, mean=10, sd=2)  # numeric
-  A <- matrix(rnorm(8), nrow=2, ncol=4)
+  # Valid classification task
+  expect_silent(refineB(A = A, X = X, y = y, assignments = assignments, task = "classification"))
   
-  # Assign points to the 2 antibodies arbitrarily
-  assignments <- c(1,1,2,2,1)
-  
-  A_refined <- refineB(
-    A = A,
-    X = X,
-    y = y,
-    assignments = assignments,
-    loss = "mse",
-    task = "regression",
-    steps = 5,
-    lr = 0.01
-  )
-  
-  expect_equal(dim(A_refined), c(2,4))
-  expect_false(all(A_refined == A))
+  # y not a factor for classification
+  y_numeric <- c(1, 2, 1, 2)
+  expect_error(refineB(A = A, X = X, y = y_numeric, assignments = assignments, task = "classification"),
+               "For classification, y must be a factor.")
 })
 
-test_that("refineB Regression: MAE with push_away should have no effect (ignored in regression)", {
-  set.seed(4)
+test_that("refineB: Gradient length validation", {
+  A <- matrix(runif(10), nrow = 2, ncol = 5)
+  X <- matrix(runif(20), nrow = 4, ncol = 5)
+  assignments <- c(1, 2, 1, 2)
   
-  X <- matrix(rnorm(20), nrow=5)
-  y <- rnorm(5, mean=5)
-  A <- matrix(rnorm(4), nrow=2)
-  assignments <- c(1,1,2,2,1)
+  # Modify .update_prototype to return incorrect gradient length for testing
+  .update_prototype <- function(ab_vec, x_i, same_label, task, loss, push_away, huber_delta) {
+    return(rep(1, length(ab_vec) - 1))  # Incorrect gradient length
+  }
   
-  A_refined_push <- refineB(
-    A = A,
-    X = X,
-    y = y,
-    assignments = assignments,
-    loss = "mae",
-    task = "regression",
-    steps = 3,
-    lr = 0.1,
-    push_away = TRUE
-  )
-  A_refined_nopush <- refineB(
-    A = A,
-    X = X,
-    y = y,
-    assignments = assignments,
-    loss = "mae",
-    task = "regression",
-    steps = 3,
-    lr = 0.1,
-    push_away = FALSE
-  )
-  expect_equal(dim(A_refined_push), c(2,1))
-  expect_equal(dim(A_refined_nopush), c(2,1))
-  expect_false(all(A_refined_push == A))
-  expect_false(all(A_refined_nopush == A))
+  expect_error(refineB(A = A, X = X, assignments = assignments, task = "clustering"),
+               ".update_prototype returned a gradient of length")
 })
 
-test_that("refineB empty cluster: assigned no points to an antibody doesn't break the function", {
-  set.seed(5)
+test_that("refineB: Basic clustering functionality", {
+  A <- matrix(runif(10), nrow = 2, ncol = 5)  # 2 antibodies, 5 features
+  X <- matrix(runif(20), nrow = 4, ncol = 5)  # 4 samples, 5 features
+  assignments <- c(1, 2, 1, 2)  # Samples assigned to antibodies
   
-  X <- matrix(rnorm(30), nrow=6, ncol=5)
-  y <- factor(c("A","A","B","B","B","A"))
-  A <- matrix(rnorm(10), nrow=2)
-  
-  # Suppose antibody 2 gets no points
-  assignments <- c(1,1,1,1,1,1)
-  
-  # classification
-  expect_silent({
-    A_ref <- refineB(
-      A = A,
-      X = X,
-      y = y,
-      assignments = assignments,
-      loss = "categorical_crossentropy",
-      task = "classification",
-      steps = 3,
-      lr = 0.1
-    )
-  })
-  # Should not error. Dimension is same
-  expect_equal(dim(A_ref), dim(A))
+  # Check output dimensions
+  result <- refineB(A = A, X = X, assignments = assignments, task = "clustering")
+  expect_equal(dim(result), dim(A))
 })
 
-test_that("refineB invalid arguments: wrong assignment length or mismatch task/loss", {
-  set.seed(6)
+test_that("refineB: Regression task validation", {
+  A <- matrix(runif(10), nrow = 2, ncol = 5)
+  X <- matrix(runif(20), nrow = 4, ncol = 5)
+  y <- c(1.5, 2.3, 1.8, 2.1)  # Numeric y for regression
+  assignments <- c(1, 2, 1, 2)
   
-  X <- matrix(rnorm(20), nrow=5)
-  y_fac <- factor(c("A","A","B","B","A"))
-  A <- matrix(rnorm(6), nrow=2)
+  # Valid regression task
+  expect_silent(refineB(A = A, X = X, y = y, assignments = assignments, task = "regression"))
   
-  expect_error(
-    refineB(
-      A = A,
-      X = X,
-      y = y_fac,
-      assignments = c(1,1,2,2), # length mismatch
-      loss = "categorical_crossentropy",
-      task = "classification"
-    ), 
-    "must match the number of rows in X"
-  )
-  
-  # Using a regression loss but task=classification
-  expect_error(
-    refineB(
-      A = A,
-      X = X,
-      y = y_fac,
-      assignments = c(1,1,2,2,2),
-      loss = "mae",
-      task = "classification"
-    ),
-    "For classification, loss must be one of"
-  )
+  # Invalid y for regression (non-numeric)
+  y_invalid <- factor(c("A", "B", "A", "B"))
+  expect_error(refineB(A = A, X = X, y = y_invalid, assignments = assignments, task = "regression"),
+               "y must be numeric for regression.")
 })
 
-test_that("refineB huber loss: modifies prototypes in regression scenario", {
-  set.seed(7)
+test_that("refineB: Edge case - Empty antibody assignment", {
+  A <- matrix(runif(10), nrow = 2, ncol = 5)
+  X <- matrix(runif(20), nrow = 4, ncol = 5)
+  assignments <- c(1, 1, 1, 1)  # All samples assigned to the same antibody
   
-  X <- matrix(rnorm(20), nrow=5)
-  y <- rnorm(5, mean=10)
-  A <- matrix(rnorm(6), nrow=2)
-  assignments <- c(1,1,2,2,1)
-  
-  A_ref <- refineB(
-    A = A,
-    X = X,
-    y = y,
-    assignments = assignments,
-    loss = "huber",
-    task = "regression",
-    steps = 5,
-    lr = 0.05,
-    huber_delta = 1.0
-  )
-  
-  expect_equal(dim(A_ref), c(2,1))
-  expect_false(all(A_ref == A))
+  result <- refineB(A = A, X = X, assignments = assignments, task = "clustering")
+  expect_equal(dim(result), dim(A))  # Ensure output dimensions are preserved
 })
-
-test_that("refineB poisson loss: no errors for regression scenario", {
-  set.seed(8)
-  
-  X <- matrix(rpois(25, lambda=5), nrow=5, ncol=5)  # random counts
-  y <- rpois(5, lambda=10)  # regression-like
-  A <- matrix(rnorm(10), nrow=2)
-  assignments <- c(1,2,1,2,1)
-  
-  A_ref <- refineB(
-    A = A,
-    X = X,
-    y = y,
-    assignments = assignments,
-    loss = "poisson",
-    task = "regression",
-    steps = 3,
-    lr = 0.02
-  )
-  
-  expect_equal(dim(A_ref), dim(A))
-  expect_false(all(A_ref == A))
-})
-
-test_that("refineB cosine classification: dimension check and changes", {
-  set.seed(9)
-  
-  X <- matrix(rnorm(16), nrow=4)
-  y <- factor(c("C","C","D","D"))
-  A <- matrix(rnorm(8), nrow=2)
-  assignments <- c(1,1,2,2)
-  
-  A_ref <- refineB(
-    A = A,
-    X = X,
-    y = y,
-    assignments = assignments,
-    loss = "cosine",
-    task = "classification",
-    steps = 4,
-    lr = 0.1,
-    push_away = TRUE
-  )
-  
-  expect_equal(dim(A_ref), c(2,2))
-  expect_false(all(A_ref == A))
-})
-

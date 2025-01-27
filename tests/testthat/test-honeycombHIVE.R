@@ -72,7 +72,7 @@ test_that("honeycombHIVE runs successfully for regression task", {
   expect_type(res, "list")
   expect_length(res, 3) # 3 layers
   for (layer in res) {
-    expect_named(layer, c("antibodies", "assignments", "task", "predictions", "membership"))
+    expect_named(layer, c("antibodies", "assignments", "predictions", "task", "membership"))
     expect_equal(layer$task, "regression")
     expect_true(is.data.frame(layer$antibodies))
     expect_true(is.numeric(layer$assignments))
@@ -210,7 +210,7 @@ test_that("honeycombHIVE refine=TRUE for regression (MSE)", {
   # Check structure
   expect_length(res_ref, 2)
   for (ly in res_ref) {
-    expect_named(ly, c("antibodies","assignments","task","predictions","membership"))
+    expect_named(ly, c("antibodies","assignments","predictions","task","membership"))
     expect_equal(ly$task, "regression")
     expect_true(is.data.frame(ly$antibodies))
   }
@@ -501,6 +501,6 @@ test_that("honeycombHIVE refineLoss mismatch: attempts cross_entropy in regressi
       refineLR = 0.01,
       verbose = FALSE
     ),
-    regexp="some.*error.*cross_entropy.*not.*valid.*regression"
+    "Invalid refineLoss 'categorical_crossentropy' for task 'regression'. Supported losses: mse, mae, huber, kullback_leibler"
   )
 })
