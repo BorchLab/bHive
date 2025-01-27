@@ -116,6 +116,18 @@ honeycombHIVE <- function(X,
   
   .validate_bHIVE_input(X, y)
   
+  # Validate refineLoss based on task
+  valid_losses <- list(
+    regression = c("mse", "mae", "huber", "kullback_leibler"),
+    classification = c("categorical_crossentropy", "binary_crossentropy", "kullback_leibler"),
+    clustering = c("mse", "mae", "huber")
+  )
+  
+  if (!refineLoss %in% valid_losses[[task]]) {
+    stop(sprintf("Invalid refineLoss '%s' for task '%s'. Supported losses: %s", 
+                 refineLoss, task, paste(valid_losses[[task]], collapse = ", ")))
+  }
+  
   X <- as.data.frame(X)
   n_original <- nrow(X)
   
