@@ -123,7 +123,7 @@ honeycombHIVE <- function(X,
     clustering = c("mse", "mae", "huber")
   )
   
-  if (!refineLoss %in% valid_losses[[task]]) {
+  if (refine && !refineLoss %in% valid_losses[[task]]) {
     stop(sprintf("Invalid refineLoss '%s' for task '%s'. Supported losses: %s", 
                  refineLoss, task, paste(valid_losses[[task]], collapse = ", ")))
   }
@@ -176,8 +176,6 @@ honeycombHIVE <- function(X,
       # 'assignments' here are for the layer's data, not the original data.
       assignments_layer <- res_layer$assignments
       if (task == "clustering") {
-        # For pure clustering, a simple approach is to treat everything as same label
-        # or skip the push_away logic. Let's do a toy approach:
         
         fake_y <- rep(1, nrow(current_X))
         new_A <- refineB(

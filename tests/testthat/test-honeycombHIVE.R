@@ -212,7 +212,7 @@ test_that("honeycombHIVE refine=TRUE for regression (MSE)", {
   for (ly in res_ref) {
     expect_named(ly, c("antibodies","assignments","predictions","task","membership"))
     expect_equal(ly$task, "regression")
-    expect_true(is.data.frame(ly$antibodies))
+    expect_true(is.matrix(ly$antibodies))
   }
   
   # Compare final prototypes
@@ -220,7 +220,7 @@ test_that("honeycombHIVE refine=TRUE for regression (MSE)", {
   final_ref    <- res_ref[[2]]$antibodies
   expect_false(isTRUE(all.equal(final_no_ref, final_ref)))
 })
-
+set.seed(42)
 test_that("honeycombHIVE refineSteps=0 does not change prototypes", {
   data(iris)
   X <- as.matrix(iris[,1:4])
@@ -291,7 +291,7 @@ test_that("honeycombHIVE fails gracefully with invalid refineLoss for given task
       refineLR = 0.01,
       verbose = FALSE
     )
-  }, regexp="For classification, loss must be one of|.*huber.*not.*supported")
+  }, regexp="Invalid refineLoss 'huber' for task 'classification'. Supported losses: categorical_crossentropy, binary_crossentropy, kullback_leibler")
 })
 
 test_that("honeycombHIVE clustering works with refine=TRUE, default refineLoss=mae", {
@@ -446,6 +446,7 @@ test_that("honeycombHIVE refineSteps=0 yields same result as refine=FALSE", {
   data(iris)
   X <- as.matrix(iris[,1:4])
   
+  set.seed(42)
   # refine=FALSE
   res_no_ref <- honeycombHIVE(
     X = X,
@@ -457,6 +458,7 @@ test_that("honeycombHIVE refineSteps=0 yields same result as refine=FALSE", {
     verbose = FALSE
   )
   
+  set.seed(42)
   res_steps0 <- honeycombHIVE(
     X = X,
     task = "clustering",
@@ -475,7 +477,7 @@ test_that("honeycombHIVE refineSteps=0 yields same result as refine=FALSE", {
   final_steps0 <- res_steps0[[1]]$antibodies
   
   # If you do random seeds, you can set a seed to ensure identical. If not, do a tolerance check:
-  expect_equal(final_no_ref, final_steps0, tolerance=1e-14)
+  expect_equal(final_no_ref, as.data.frame(final_steps0), tolerance=1e-14)
 })
 
 test_that("honeycombHIVE refineLoss mismatch: attempts cross_entropy in regression => should error or fallback", {

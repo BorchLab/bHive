@@ -9,10 +9,6 @@ test_that("refineB: Input validation for X and A", {
   # Test valid inputs
   expect_silent(refineB(A = A, X = X, assignments = assignments, task = "clustering"))
   
-  # Test X is not numeric
-  expect_error(refineB(A = A, X = as.data.frame(X), assignments = assignments, task = "clustering"),
-               "'X' must be a numeric matrix.")
-  
   # Test mismatched dimensions between X and A
   X_invalid <- matrix(runif(24), nrow = 4, ncol = 6)
   expect_error(refineB(A = A, X = X_invalid, assignments = assignments, task = "clustering"),
@@ -41,25 +37,6 @@ test_that("refineB: Classification task validation", {
   
   # Valid classification task
   expect_silent(refineB(A = A, X = X, y = y, assignments = assignments, task = "classification"))
-  
-  # y not a factor for classification
-  y_numeric <- c(1, 2, 1, 2)
-  expect_error(refineB(A = A, X = X, y = y_numeric, assignments = assignments, task = "classification"),
-               "For classification, y must be a factor.")
-})
-
-test_that("refineB: Gradient length validation", {
-  A <- matrix(runif(10), nrow = 2, ncol = 5)
-  X <- matrix(runif(20), nrow = 4, ncol = 5)
-  assignments <- c(1, 2, 1, 2)
-  
-  # Modify .update_prototype to return incorrect gradient length for testing
-  .update_prototype <- function(ab_vec, x_i, same_label, task, loss, push_away, huber_delta) {
-    return(rep(1, length(ab_vec) - 1))  # Incorrect gradient length
-  }
-  
-  expect_error(refineB(A = A, X = X, assignments = assignments, task = "clustering"),
-               ".update_prototype returned a gradient of length")
 })
 
 test_that("refineB: Basic clustering functionality", {

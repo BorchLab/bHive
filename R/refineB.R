@@ -111,7 +111,7 @@ refineB <- function(A,
   ab_label <- rep(NA_character_, nAb)
   if (task == "classification") {
     if (!is.factor(y)) {
-      stop("For classification, y must be a factor.")
+      y <- as.factor(y)
     }
     for (ab_idx in seq_len(nAb)) {
       pts <- samples_by_ab[[ab_idx]]
