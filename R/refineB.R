@@ -60,10 +60,10 @@ refineB <- function(A,
                     X,
                     y = NULL,
                     assignments,
-                    task = c("clustering","classification","regression"),
-                    loss = c("categorical_crossentropy","binary_crossentropy",
-                             "kullback_leibler","cosine",
-                             "mse","mae","poisson","huber"),
+                    task = c("clustering", "classification", "regression"),
+                    loss = c("categorical_crossentropy", "binary_crossentropy",
+                             "kullback_leibler", "cosine",
+                             "mse", "mae", "poisson", "huber"),
                     steps = 5,
                     lr = 0.01,
                     push_away = TRUE,
@@ -93,21 +93,46 @@ refineB <- function(A,
   if (length(assignments) != n) {
     stop("Length of 'assignments' must match nrow(X).")
   }
-  if (any(assignments < 1 | assignments > nAb)) {
-    stop("'assignments' values must be between 1..nAb.")
+  # Convert assignments to numeric indices
+  unique_assignments <- unique(assignments)
+  assignments <- match(assignments, unique_assignments)
+  nLabels <- length(unique_assignments)
+  
+  if (nLabels > nAb) {
+    if(verbose) {
+      message(sprintf("Number of unique assignments (%d) exceeds the number of antibodies (nAb = %d).",
+                      nLabels, nAb))
+    }
   }
-  if(task == "regression" & !is.numeric(y)) {
+  
+  # Pad prototypes if nAb > nLabels
+  if (nLabels < nAb) {
+    if(verbose) {
+      message(sprintf("Number of prototypes (nAb = %d) exceeds unique labels (%d). Extra prototypes will not be assigned data points.\n",
+                      nAb, nLabels))
+    }
+  }
+  
+  # Validate assignments
+  if (any(assignments < 1 | assignments > nAb, na.rm = TRUE)) {
+    invalid_assignments <- assignments[assignments < 1 | assignments > nAb]
+    stop(sprintf("'assignments' contains invalid values: %s. Valid range is 1..%d.",
+                 paste(unique(invalid_assignments), collapse = ", "), nAb))
+  }
+  
+  
+  if (task == "regression" && !is.numeric(y)) {
     stop("y must be numeric for regression.")
   }
   
-  # Build a samples_by_ab list if needed (e.g. for classification to find dominant labels)
+  # Build a samples_by_ab list if needed (e.g., for classification to find dominant labels)
   samples_by_ab <- vector("list", nAb)
   for (i in seq_len(n)) {
     j <- assignments[i]
     samples_by_ab[[j]] <- c(samples_by_ab[[j]], i)
   }
   
-  # classification: find dominant label per antibody
+  # Classification: find dominant label per antibody
   ab_label <- rep(NA_character_, nAb)
   if (task == "classification") {
     if (!is.factor(y)) {
@@ -130,6 +155,7 @@ refineB <- function(A,
     idx_shuf <- sample.int(n)
     for (i in idx_shuf) {
       j <- assignments[i]
+      
       # Defensive checks
       if (is.na(j) || j < 1 || j > nAb) {
         next

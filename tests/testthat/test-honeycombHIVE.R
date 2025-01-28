@@ -161,7 +161,7 @@ test_that("honeycombHIVE refine=TRUE for classification with cross-entropy", {
   for (layer_obj in res_ref) {
     expect_named(layer_obj, c("antibodies","assignments","task",
                               "predictions","membership"))
-    expect_true(is.data.frame(layer_obj$antibodies))
+    expect_true(is.matrix(layer_obj$antibodies))
   }
   
   # Check that the final prototypes differ
@@ -376,7 +376,7 @@ test_that("honeycombHIVE classification: refine=TRUE with cross_entropy", {
   expect_length(res_ref, 2)
   for (ly in res_ref) {
     expect_equal(ly$task, "classification")
-    expect_true(is.data.frame(ly$antibodies))
+    expect_true(is.matrix(ly$antibodies))
     # We also expect "assignments", "predictions", "membership"
     expect_true("assignments" %in% names(ly))
     expect_true("membership"  %in% names(ly))

@@ -26,7 +26,7 @@ test_that("refineB: Validation for assignments", {
   # Assignments out of range
   assignments_out_of_range <- c(1, 3, 1, 2)
   expect_error(refineB(A = A, X = X, assignments = assignments_out_of_range, task = "clustering"),
-               "'assignments' values must be between 1..nAb.")
+               "'assignments' contains invalid values: 3. Valid range is 1..2.")
 })
 
 test_that("refineB: Classification task validation", {
