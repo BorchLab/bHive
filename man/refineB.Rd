@@ -19,7 +19,7 @@ refineB(
 )
 }
 \arguments{
-\item{A}{Matrix (nAb x d) of antibody/prototype positions.}
+\item{A}{Numeric matrix (nAb x d) of antibody/prototype positions.}
 
 \item{X}{Matrix or data frame (nSamples x d) of feature data.}
 
@@ -30,20 +30,20 @@ each sample belongs to (1..nAb).}
 
 \item{task}{One of c("clustering","classification","regression").}
 
-\item{loss}{One of c("mse","mae","cross_entropy","huber","poisson","kullback_leibler","cosine"),
-or any custom approach you'd like to code.}
+\item{loss}{One of c("categorical_crossentropy","binary_crossentropy",
+"kullback_leibler","cosine","mse","mae","poisson","huber").}
 
 \item{steps}{Integer. How many gradient steps to run.}
 
 \item{lr}{Numeric. Learning rate for each update.}
 
-\item{push_away}{Logical (classification only). Whether to push prototypes away
+\item{push_away}{Logical (for classification). Whether to push prototypes away
 from differently-labeled samples.}
 
 \item{huber_delta}{Numeric. The delta threshold if using huber loss.}
 }
 \value{
-The updated matrix A of shape (nAb x d).
+Updated matrix A of shape (nAb x d).
 }
 \description{
 After running bHIVE (or honeycombHIVE), you have a set of final antibody positions (A)
@@ -60,7 +60,7 @@ The user must provide:
 - An integer vector \code{assignments} (length = nSamples) giving the
   antibody index to which each data point is assigned (range 1..nAb).
   
-  ## Available Losses
+## Available Losses
 
 ### Classification (factor y)
 - **"categorical_crossentropy"**: Pull prototypes toward data points if they share
@@ -80,4 +80,10 @@ The user must provide:
   (pred - y)/pred if we stored a predicted rate; here we do a naive version).
 - **"huber"**: Combines L1 and L2 regions, uses a delta cutoff. We adapt it
   to a naive per-point gradient in feature space.
+
+
+This function does a simple mini-SGD loop over each data point in random order.
+For classification, it identifies whether the data point shares the antibody's
+"dominant label" and pulls/pushes accordingly. For regression/clustering, it
+primarily pulls prototypes toward assigned points.
 }

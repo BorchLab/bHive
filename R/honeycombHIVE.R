@@ -269,7 +269,7 @@ honeycombHIVE <- function(X,
         idx_in_current <- match(rn_in_cluster, rownames(current_X))
         if (length(idx_in_current) > 0) {
           val_pred <- mean(current_y[idx_in_current], na.rm=TRUE)
-          predictions_all_original[orig_indices] <- val_pred
+          predictions_all_original[orig_indices] <- ifelse(is.na(val_pred), mean(y, na.rm=TRUE), val_pred)
         }
       }
       

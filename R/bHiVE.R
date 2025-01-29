@@ -215,8 +215,8 @@ bHIVE <- function(X,
     class_counts <- matrix(0, nrow=nAntibodies, ncol=length(classes))
     colnames(class_counts) <- classes
   } else if (task=="regression") {
-    sum_y   <- numeric(nAntibodies)
-    sum_aff <- numeric(nAntibodies)
+    sum_y   <- numeric(nrow(A))
+    sum_aff <- numeric(nrow(A))
   }
   
   # iterative training
@@ -306,7 +306,7 @@ bHIVE <- function(X,
     if (task=="classification") {
       class_counts <- class_counts[keep,,drop=FALSE]
     } else if (task=="regression") {
-      antibody_values <- antibody_values[keep]
+      antibody_values <- ifelse(keep, antibody_values, mean(y, na.rm = TRUE))
     }
     
     if (nrow(A)==0) {
@@ -371,7 +371,7 @@ bHIVE <- function(X,
       if (sum(aff)==0) {
         mean(y)
       } else {
-        sum(aff * antibody_values)/sum(aff)
+        sum(aff * antibody_values, na.rm=TRUE)/sum(aff)
       }
     })
     
