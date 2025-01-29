@@ -460,7 +460,7 @@ ggplot(Boston, aes(x = y, y = Predicted_Refined)) +
 
 # Conclusions
 
-The `bHIVE` package is a versatile tool for clustering, classification, and regression tasks. Its integration with caret simplifies hyperparameter tuning and cross-validation, making it suitable for a variety of datasets and use cases. If you have any questions, comments, or suggestions, please visit the [GitHub repository](https://github.com/ncborcherding/bHIVE).
+The `bHIVE` package is a versatile tool for clustering, classification, and regression tasks. Its integration with caret simplifies hyperparameter tuning and cross-validation, making it suitable for a variety of datasets and use cases. If you have any questions, comments, or suggestions, please visit the [GitHub repository](https://github.com/BorchLab/bHIVE).
 
 ```{r}
 sessionInfo()
