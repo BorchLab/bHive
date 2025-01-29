@@ -145,7 +145,7 @@ bHIVEmodel <- list(
         if (modelFit$task == "classification") {
           return(modelFit$assignments[closest])
         } else if (modelFit$task == "regression") {
-          return(modelFit$assignments[closest])
+          return(modelFit$predictions[closest])
         } else {
           return(closest)
         }

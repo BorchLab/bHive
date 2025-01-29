@@ -191,9 +191,6 @@ res <- bHIVE(X = X,
              initMethod = "kmeans++",
              verbose = FALSE)
 
-# Compare predicted vs actual
-cor(res$assignments, y)
-
 # Visualize regression results
 Boston$Predicted <- res$assignments
 ggplot(Boston, aes(x = y, y = Predicted)) +
@@ -248,7 +245,7 @@ ggplot(tuning_results$results, aes(x = nAntibodies,
 
 The `bHIVE` package provides a `caret` wrapper for seamless integration with the `caret` framework, allowing for easy cross-validation and hyperparameter tuning. Here, we demonstrate regression on the Boston housing dataset.
 
-```{r tidy = FALSE}
+```{r message=FALSE, warning=FALSE, tidy=FALSE}
 # Train using caret
 train_control <- trainControl(method = "cv", number = 2)
 set.seed(42)
@@ -260,7 +257,7 @@ model <- train(x = X,
                     nAntibodies = c(10, 20),
                     beta = c(3, 5),
                     epsilon = c(0.01, 0.05)),
-                verbose = FALSE
+               verbose = FALSE
 )
 
 # Visualize caret results
@@ -322,9 +319,149 @@ for (i in seq_along(res)) {
 ```
 Note: If you use `task = "classification"` or `task = "regression"`, honeycombHIVE will generate multi-layer predictions. You can compare each layer’s predictions against the true labels/outcomes to see if performance improves or if the data become too collapsed.
 
+## Gradient-based Refinement
+
+The ```refineB()``` function can further tune or adjust the antibody prototypes learned by the ```bHIVE()``` algorithm. In particular:
+
+* **loss**: The loss function used to guide refinement. For a classification task, `"categorical_crossentropy"` is a typical choice.
+* **steps**: The number of gradient-based updates.
+* **lr**: The learning rate used in each gradient update step.
+
+```{r tidy=FALSE}
+X <- as.matrix(iris[, 1:4])
+y <- iris$Species
+
+# Perform classification
+set.seed(42)
+res <- bHIVE(X = X, 
+             y = y, 
+             task = "classification", 
+             nAntibodies = 10, 
+             beta = 5, 
+             epsilon = 0.05, 
+             initMethod = "random",
+             k = 4,
+             verbose = FALSE)
+
+Ab <- res$antibodies
+colnames(Ab) <- colnames(X)
+assignments <- res$assignments 
+
+assignments <- as.integer(factor(res$assignments , levels = unique(res$assignments )))
+
+# Refining Antibodies
+Ab_refined <- refineB(A = Ab,
+                      X = X, 
+                      y = y,
+                      assignments = assignments,
+                      loss="categorical_crossentropy", 
+                      task="classification", 
+                      steps=5, 
+                      lr=0.01,
+                      verbose = FALSE)
+colnames(Ab_refined) <- colnames(X)
+
+# PCA for the Iris data set
+pca <- prcomp(X, scale.=TRUE)
+X_pca <- pca$x[,1:2]        
+colnames(X_pca) <- c("PC1","PC2")
+
+# Antibodies in PCA space
+A_bhive_pca   <- predict(pca, Ab)
+A_refined_pca <- predict(pca, Ab_refined)
+
+# Build a data frame for ggplot
+plot_data <- data.frame(PC1 = X_pca[,1],
+                        PC2 = X_pca[,2],
+                        Cluster = factor(assignments))
+
+proto_df <- data.frame(PC1_before = A_bhive_pca[,1],
+                       PC2_before = A_bhive_pca[,2],
+                       PC1_after  = A_refined_pca[,1],
+                       PC2_after  = A_refined_pca[,2],
+                       ID = 1:nrow(A_bhive_pca))
+
+ggplot() +
+  geom_point(data=plot_data, 
+             aes(x=PC1, y=PC2, color=Cluster), alpha=0.6) +
+  geom_point(data=proto_df, #Original Antibodies
+             aes(x=PC1_before, y=PC2_before),
+             color="#440154", size=4) +
+  geom_point(data=proto_df, #New Antibodies
+              aes(x=PC1_after, y=PC2_after),
+              color="#FDE725", size=4) +
+  geom_segment(data=proto_df,
+               aes(x=PC1_before, y=PC2_before, xend=PC1_after,
+                   yend=PC2_after),
+                   arrow = arrow(length=unit(0.2,"cm"), type = "closed"),
+               color="black", size=1, lwd = 0.5) + 
+  scale_color_viridis(discrete = TRUE) + 
+  labs(title="bHIVE vs. refineB\n(antibodies in PCA space)") +
+  theme_minimal()
+```
+
+**Interpretation**
+* Each **dot** in PCA space represents a **sample** from the Iris dataset, colored by its assigned antibody or cluster (`assignments`).
+* The **purple points** are the **initial** antibody positions.
+* The **yellow points** show the **refined** positions ```refineB()````.
+* The **black arrows** illustrate how each antibody has been updated in feature space to improve its performance based on the selected loss function.
+
+**Applying Refinement to honeycombHIVE**
+
+```{r eval=FALSE, tidy=FALSE}
+X <- as.matrix(Boston[, -14])
+y <- Boston$medv
+
+res_reg <- honeycombHIVE(X = X,
+                         y = y,
+                         task = "regression",
+                         initMethod = "kmeans++",
+                         epsilon = 0.05,
+                         layers = 3, 
+                         nAntibodies = 30, 
+                         beta = 5, 
+                         maxIter = 10,
+                         refine = FALSE,
+                         verbose = FALSE)
+
+res_reg_refine <- honeycombHIVE(X = X,
+                                y = y,
+                                task = "regression",
+                                initMethod = "kmeans++",
+                                epsilon = 0.05,
+                                layers = 3, 
+                                nAntibodies = 30, 
+                                beta = 5, 
+                                maxIter = 10,
+                                refine = TRUE,             
+                                refineLoss = "mse",        
+                                refineSteps = 3,           
+                                refineLR = 0.01,            
+                                verbose = FALSE)
+
+Boston$Predicted <- res_reg[[3]]$predictions
+Boston$Predicted_Refined <- res_reg_refine[[3]]$predictions
+
+ggplot(Boston, aes(x = y, y = Predicted)) +
+    geom_point() +
+    geom_smooth(method = "lm", color = "blue", se = FALSE) +
+    labs(title = "Regression Results with bHIVE", 
+         x = "Actual Values (medv)", 
+         y = "Predicted Values") +
+    theme_minimal()
+
+ggplot(Boston, aes(x = y, y = Predicted_Refined)) +
+    geom_point() +
+    geom_smooth(method = "lm", color = "blue", se = FALSE) +
+    labs(title = "Regression Results with bHIVE", 
+         x = "Actual Values (medv)", 
+         y = "Predicted Values") +
+    theme_minimal()
+```
+
 # Conclusions
 
-The `bHIVE` package is a versatile tool for clustering, classification, and regression tasks. Its integration with caret simplifies hyperparameter tuning and cross-validation, making it suitable for a variety of datasets and use cases. If you have any questions, comments, or suggestions, please visit the [GitHub repository](https://github.com/ncborcherding/bHIVE).
+The `bHIVE` package is a versatile tool for clustering, classification, and regression tasks. Its integration with caret simplifies hyperparameter tuning and cross-validation, making it suitable for a variety of datasets and use cases. If you have any questions, comments, or suggestions, please visit the [GitHub repository](https://github.com/BorchLab/bHIVE).
 
 ```{r}
 sessionInfo()

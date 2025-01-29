@@ -2,7 +2,7 @@
 
 ## B-cell Hybrid Immune Variant Engine
 
-<img align="right" src="https://github.com/ncborcherding/bHive/blob/main/www/bhive_hex.png" width="305" height="352">
+<img align="right" src="https://github.com/BorchLab/bHive/blob/main/www/bhive_hex.png" width="305" height="352">
 
 <!-- badges: start -->
 [![R-CMD-check](https://github.com/ncborcherding/bHive/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/ncborcherding/bHive/actions/workflows/R-CMD-check.yaml)
@@ -45,7 +45,7 @@ The algorithm operates in the following steps:
 
 4. **Assignment**: Data points are assigned to antibodies using affinity (for classification/regression) or distance (for clustering).
 
-<img align="center" src="https://github.com/ncborcherding/bHive/blob/main/www/iterativeGraphic.png">
+<img align="center" src="https://github.com/BorchLab/bHive/blob/main/www/iterativeGraphic.png">
 
 ## Installation
 
@@ -53,7 +53,7 @@ To install the **bHIVE** from GitHub, use:
 
 ```R
 # Install bHIVE from GitHub
-devtools::install_github("ncborcherding/bHIVE")
+devtools::install_github("BorchLab/bHIVE")
 ```
 
 ## Examples
@@ -123,11 +123,11 @@ cor(res$assignments, y)
 
 ## Bug Reports/New Features
 
-#### If you run into any issues or bugs please submit a [GitHub issue](https://github.com/ncborcherding/bHIVE/issues) with details of the issue.
+#### If you run into any issues or bugs please submit a [GitHub issue](https://github.com/BorchLab/bHIVE/issues) with details of the issue.
 
 If possible please include a [reproducible example](https://reprex.tidyverse.org/). 
 
-#### Any requests for new features or enhancements can also be submitted as [GitHub issues](https://github.com/ncborcherding/bHIVE/issues).
+#### Any requests for new features or enhancements can also be submitted as [GitHub issues](https://github.com/BorchLab/bHIVE/issues).
 
 ### Contributing
 

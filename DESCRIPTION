@@ -30,4 +30,4 @@ VignetteBuilder: knitr
 Config/testthat/edition: 3
 Language: en-US
 URL: https://www.borch.dev/uploads/bHIVE/
-BugReports: https://github.com/ncborcherding/bHIVE/issues
+BugReports: https://github.com/BorchLab/bHIVE/issues

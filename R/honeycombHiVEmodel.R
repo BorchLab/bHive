@@ -100,7 +100,6 @@ honeycombHIVEmodel <- list(
       beta        = param$beta,
       epsilon     = param$epsilon,
       layers      = param$layers,
-      verbose     = FALSE,  # let caret handle verbosity
       ...
     )
     

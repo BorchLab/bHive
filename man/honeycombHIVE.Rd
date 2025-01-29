@@ -2,7 +2,7 @@
 % Please edit documentation in R/honeycombHIVE.R
 \name{honeycombHIVE}
 \alias{honeycombHIVE}
-\title{honeycombHIVE: Multilayered Artificial Immune Network}
+\title{honeycombHIVE: Multilayer AIS with optional gradient-based fine-tuning}
 \usage{
 honeycombHIVE(
   X,
@@ -18,6 +18,12 @@ honeycombHIVE(
   minClusterSize = NULL,
   distance = "euclidean",
   verbose = TRUE,
+  refine = FALSE,
+  refineLoss = "mse",
+  refineSteps = 5,
+  refineLR = 0.01,
+  refinePushAway = TRUE,
+  refineHuberDelta = 1,
   ...
 )
 }
@@ -56,6 +62,24 @@ calculation. Default \code{"euclidean"}.}
 
 \item{verbose}{Logical, whether to print progress at each layer.}
 
+\item{refine}{Logical. If TRUE, apply gradient-based refinement to each 
+layer's antibody positions via \code{refineB()}.}
+
+\item{refineLoss}{Character specifying the loss function if \code{refine=TRUE}.
+e.g. "mse","mae","categorical_crossentropy","binary_crossentropy","huber",
+"kullback_leibler", etc.}
+
+\item{refineSteps}{Integer. Number of gradient steps in 
+\code{refineB()}.}
+
+\item{refineLR}{Numeric. Learning rate for gradient updates.}
+
+\item{refinePushAway}{Logical. If TRUE (classification only), push 
+prototypes away
+  from differently labeled points.}
+
+\item{refineHuberDelta}{Numeric. Delta parameter if using the "huber" loss.}
+
 \item{...}{Additional parameters passed to \code{bHIVE}.}
 }
 \value{
@@ -67,8 +91,7 @@ A list of length \code{layers}. Each element (layer) includes:
   \item \code{membership}: For each \strong{original} row of \code{X}, 
   which cluster/antibody it belongs to in this layer.
   \item \code{predictions}: For classification/regression, predicted label 
-  or numeric value
-        for each \strong{original row in X}.
+  or numeric value for each \strong{original row in X}.
   \item \code{task}: The specified task (clustering, classification, 
   regression).
 }
