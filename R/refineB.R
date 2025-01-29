@@ -47,6 +47,8 @@
 #' @param push_away Logical (for classification). Whether to push prototypes away
 #'   from differently-labeled samples.
 #' @param huber_delta Numeric. The delta threshold if using huber loss.
+#' @param verbose Logical. If \code{TRUE}, prints progress messages each 
+#' iteration.
 #' @return Updated matrix A of shape (nAb x d).
 #'
 #' @details
@@ -67,7 +69,8 @@ refineB <- function(A,
                     steps = 5,
                     lr = 0.01,
                     push_away = TRUE,
-                    huber_delta = 1.0) {
+                    huber_delta = 1.0, 
+                    verbose = TRUE) {
   
   task <- match.arg(task)
   loss <- match.arg(loss)

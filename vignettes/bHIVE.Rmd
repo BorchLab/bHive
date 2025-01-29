@@ -245,7 +245,7 @@ ggplot(tuning_results$results, aes(x = nAntibodies,
 
 The `bHIVE` package provides a `caret` wrapper for seamless integration with the `caret` framework, allowing for easy cross-validation and hyperparameter tuning. Here, we demonstrate regression on the Boston housing dataset.
 
-```{r tidy = FALSE}
+```{r message=FALSE, warning=FALSE, tidy=FALSE}
 # Train using caret
 train_control <- trainControl(method = "cv", number = 2)
 set.seed(42)
@@ -257,7 +257,7 @@ model <- train(x = X,
                     nAntibodies = c(10, 20),
                     beta = c(3, 5),
                     epsilon = c(0.01, 0.05)),
-                verbose = FALSE
+               verbose = FALSE
 )
 
 # Visualize caret results
@@ -327,7 +327,7 @@ The ```refineB()``` function can further tune or adjust the antibody prototypes 
 * **steps**: The number of gradient-based updates.
 * **lr**: The learning rate used in each gradient update step.
 
-```{r}
+```{r tidy=FALSE}
 X <- as.matrix(iris[, 1:4])
 y <- iris$Species
 
@@ -357,7 +357,8 @@ Ab_refined <- refineB(A = Ab,
                       loss="categorical_crossentropy", 
                       task="classification", 
                       steps=5, 
-                      lr=0.01)
+                      lr=0.01,
+                      verbose = FALSE)
 colnames(Ab_refined) <- colnames(X)
 
 # PCA for the Iris data set
@@ -407,7 +408,7 @@ ggplot() +
 
 **Applying Refinement to honeycombHIVE**
 
-```{r honeycomb-refine-clustering, eval=FALSE}
+```{r eval=FALSE, tidy=FALSE}
 X <- as.matrix(Boston[, -14])
 y <- Boston$medv
 

@@ -15,7 +15,8 @@ refineB(
   steps = 5,
   lr = 0.01,
   push_away = TRUE,
-  huber_delta = 1
+  huber_delta = 1,
+  verbose = TRUE
 )
 }
 \arguments{
@@ -41,6 +42,9 @@ each sample belongs to (1..nAb).}
 from differently-labeled samples.}
 
 \item{huber_delta}{Numeric. The delta threshold if using huber loss.}
+
+\item{verbose}{Logical. If \code{TRUE}, prints progress messages each 
+iteration.}
 }
 \value{
 Updated matrix A of shape (nAb x d).
