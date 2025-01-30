@@ -2,78 +2,102 @@
 % Please edit documentation in R/swarmbHIVE.R
 \name{swarmbHIVE}
 \alias{swarmbHIVE}
-\title{Tune Hyperparameters for bHIVE}
+\title{Tune Hyperparameters for bHIVE (Swarm/Grid Search)}
 \usage{
 swarmbHIVE(
   X,
   y = NULL,
-  task = "clustering",
+  task = c("clustering", "classification", "regression"),
   grid,
-  metric = "silhouette",
+  metric = NULL,
+  maxIter = 50,
+  parallel = FALSE,
+  BPPARAM = SerialParam(),
   verbose = TRUE
 )
 }
 \arguments{
-\item{X}{A numeric matrix or data frame of input features, with rows as 
-observations 
-  and columns as features.}
+\item{X}{A numeric matrix or data frame of input features (rows = observations, columns = features).}
 
-\item{y}{Optional. A target vector. Use for classification (factor) or 
-regression (numeric).
-  If NULL, clustering will be performed.}
+\item{y}{Optional. A target vector: factor for classification, numeric for regression. 
+If \code{NULL}, clustering is performed.}
 
-\item{task}{Character. Specifies the task to perform: \code{"clustering"},
-\code{"classification"}, 
- or \code{"regression"}.}
+\item{task}{Character. One of \code{"clustering"}, \code{"classification"}, or \code{"regression"}.}
 
-\item{grid}{A data frame specifying the hyperparameter combinations to 
-evaluate. 
-  Should include columns \code{nAntibodies}, \code{beta}, and \code{epsilon}.}
+\item{grid}{A data frame specifying the hyperparameter combinations. Should have columns:
+\code{nAntibodies}, \code{beta}, \code{epsilon}. (Optionally more if you want to pass
+other arguments to \code{bHIVE()}.)}
 
-\item{metric}{Character. The evaluation metric to use for selecting the best 
-hyperparameters. 
-  Options are:
-  \itemize{
-    \item \code{"accuracy"}: For classification tasks.
-    \item \code{"rmse"}: For regression tasks.
-    \item \code{"silhouette"}: For clustering tasks.
-  }}
+\item{metric}{Character. Name of the evaluation metric. Options:
+\itemize{
+  \item \strong{Classification}: "accuracy", "balanced_accuracy", "f1", "kappa"
+  \item \strong{Regression}: "rmse", "mae", "r2"
+  \item \strong{Clustering}: "silhouette", "davies_bouldin", "calinski_harabasz"
+}}
+
+\item{maxIter}{Integer. Maximum iterations for each \code{bHIVE} run (default 50).}
+
+\item{parallel}{Logical. If \code{TRUE}, attempts to run each parameter combination 
+in parallel using \code{BiocParallel::bplapply()}.}
+
+\item{BPPARAM}{Character. A BiocParallel::bpparam() object that can be used for parallelization. 
+The function supports \code{SerialParam}, \code{MulticoreParam}, \code{BatchtoolsParam}, 
+and \code{SerialParam}.}
 
 \item{verbose}{Logical. If \code{TRUE}, prints progress messages.}
 }
 \value{
-A list containing:
+A list:
   \itemize{
-    \item \code{best_params}: A list of the best hyperparameters.
-    \item \code{results}: A data frame with the grid search results, 
-    including the performance metric for each combination.
+    \item \code{best_params}: A list (row) of the best hyperparameters.
+    \item \code{results}: A data frame with the full grid search results, 
+      including the \code{metric_value} for each combination.
   }
 }
 \description{
-Performs hyperparameter tuning for the bHIVE algorithm using grid search. 
-The function evaluates multiple combinations of hyperparameters to find the 
-best parameters based on a user-defined evaluation metric.
+Performs hyperparameter tuning for the bHIVE algorithm over a grid of 
+hyperparameter values or an externally provided data frame of parameter 
+combinations. Evaluates each combination using different metrics:
+}
+\details{
+- **Classification**: "accuracy", "balanced_accuracy", "f1", "kappa"
+- **Regression**: "rmse", "mae", "r2"
+- **Clustering**: "silhouette", "davies_bouldin" (*requires the 'clusterCrit' 
+  package*), or "calinski_harabasz" (*requires 'clusterCrit'*).
+
+**Note**: Some metrics require additional packages or assumptions 
+(e.g., multi-class classification for "f1" is calculated as a macro-average).
 }
 \examples{
-# Load Iris dataset
 data(iris)
-X <- as.matrix(iris[, 1:4])  # Features
-y <- iris$Species            # Labels for classification
+X <- as.matrix(iris[, 1:4])
+y <- iris$Species  # classification
 
 # Define hyperparameter grid
 grid <- expand.grid(
-  nAntibodies = c(10, 20, 30),
-  beta = c(3, 5, 7),
-  epsilon = c(0.01, 0.05, 0.1)
+  nAntibodies = c(10, 20),
+  beta        = c(3, 5),
+  epsilon     = c(0.01, 0.05)
 )
 
 # Perform hyperparameter tuning for classification
-tuning_results <- swarmbHIVE(X = X, 
-                            y = y,
-                             task = "classification", 
-                             grid = grid, 
-                             metric = "accuracy")
+tuning_results <- swarmbHIVE(
+  X = X, y = y, task = "classification", 
+  grid = grid, metric = "balanced_accuracy",
+  maxIter = 10, parallel = FALSE
+)
 
-# Best parameters
-print(tuning_results$best_params)
+# For clustering with silhouette
+set.seed(42)
+X_clust <- matrix(rnorm(100 * 5), ncol = 5)
+grid_clust <- expand.grid(nAntibodies = c(5, 10), 
+                          beta = c(3, 5), 
+                          epsilon = c(0.01, 0.05))
+res_clust <- swarmbHIVE(X_clust, 
+                        task = "clustering", 
+                        grid = grid_clust, 
+                        metric = "silhouette")
+res_clust$best_params
+
+
 }

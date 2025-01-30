@@ -188,8 +188,8 @@ honeycombHIVE <- function(X,
           steps = refineSteps,
           lr = refineLR,
           push_away = FALSE,
-          huber_delta = refineHuberDelta
-        )
+          huber_delta = refineHuberDelta,
+          verbose = verbose)
       } else {
         # classification or regression
         new_A <- refineB(
@@ -202,8 +202,8 @@ honeycombHIVE <- function(X,
           steps = refineSteps,
           lr = refineLR,
           push_away = refinePushAway,
-          huber_delta = refineHuberDelta
-        )
+          huber_delta = refineHuberDelta,
+          verbose = verbose)
       }
       
       # update bHIVE result with refined prototypes

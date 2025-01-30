@@ -7,11 +7,19 @@ test_that("refineB: Input validation for X and A", {
   assignments <- c(1, 2, 1, 2)  # Valid assignments
   
   # Test valid inputs
-  expect_silent(refineB(A = A, X = X, assignments = assignments, task = "clustering"))
+  expect_silent(refineB(A = A, 
+                        X = X, 
+                        assignments = assignments, 
+                        task = "clustering", 
+                        verbose = FALSE))
   
   # Test mismatched dimensions between X and A
   X_invalid <- matrix(runif(24), nrow = 4, ncol = 6)
-  expect_error(refineB(A = A, X = X_invalid, assignments = assignments, task = "clustering"),
+  expect_error(refineB(A = A, 
+                       X = X_invalid, 
+                       assignments = assignments, 
+                       task = "clustering", 
+                       verbose = FALSE),
                "Number of columns in 'X' must match the number of columns in 'A'.")
 })
 
@@ -21,7 +29,11 @@ test_that("refineB: Validation for assignments", {
   
   # Valid assignments
   assignments <- c(1, 2, 1, 2)
-  expect_silent(refineB(A = A, X = X, assignments = assignments, task = "clustering"))
+  expect_silent(refineB(A = A, 
+                        X = X, 
+                        assignments = assignments, 
+                        task = "clustering", 
+                        verbose = FALSE))
   
   # Assignments out of range
   assignments_out_of_range <- c(1, 3, 1, 2)
@@ -36,7 +48,12 @@ test_that("refineB: Classification task validation", {
   assignments <- c(1, 2, 1, 2)
   
   # Valid classification task
-  expect_silent(refineB(A = A, X = X, y = y, assignments = assignments, task = "classification"))
+  expect_silent(refineB(A = A, 
+                        X = X, 
+                        y = y, 
+                        assignments = assignments, 
+                        task = "classification", 
+                        verbose = FALSE))
 })
 
 test_that("refineB: Basic clustering functionality", {
@@ -45,7 +62,11 @@ test_that("refineB: Basic clustering functionality", {
   assignments <- c(1, 2, 1, 2)  # Samples assigned to antibodies
   
   # Check output dimensions
-  result <- refineB(A = A, X = X, assignments = assignments, task = "clustering")
+  result <- refineB(A = A, 
+                    X = X, 
+                    assignments = assignments, 
+                    task = "clustering", 
+                    )
   expect_equal(dim(result), dim(A))
 })
 
@@ -60,7 +81,12 @@ test_that("refineB: Regression task validation", {
   
   # Invalid y for regression (non-numeric)
   y_invalid <- factor(c("A", "B", "A", "B"))
-  expect_error(refineB(A = A, X = X, y = y_invalid, assignments = assignments, task = "regression"),
+  expect_error(refineB(A = A, 
+                       X = X, 
+                       y = y_invalid, 
+                       assignments = assignments, 
+                       task = "regression",
+                       verbose = FALSE),
                "y must be numeric for regression.")
 })
 
@@ -69,6 +95,10 @@ test_that("refineB: Edge case - Empty antibody assignment", {
   X <- matrix(runif(20), nrow = 4, ncol = 5)
   assignments <- c(1, 1, 1, 1)  # All samples assigned to the same antibody
   
-  result <- refineB(A = A, X = X, assignments = assignments, task = "clustering")
+  result <- refineB(A = A, 
+                    X = X, 
+                    assignments = assignments, 
+                    task = "clustering", 
+                    verbose = FALSE)
   expect_equal(dim(result), dim(A))  # Ensure output dimensions are preserved
 })

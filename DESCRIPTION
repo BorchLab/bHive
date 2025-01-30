@@ -12,8 +12,9 @@ biocViews: Software, Classification, Annotation, Regression, Classification
 Depends: 
     R (>= 4.0.0)
 Imports: 
+    BiocParallel,
     cluster,
-    magrittr,
+    clusterCrit,
     stats
 Suggests:
     BiocStyle,

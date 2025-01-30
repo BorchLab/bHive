@@ -35,7 +35,7 @@ This vignette demonstrates how to:
 4. Use multilayered immune networks with `honeycombHIVE`
 4. Visualize results with `ggplot2`.
 
-## Parametes for `bHIVE()`
+## Parameters for `bHIVE()`
 
 The behavior of the `bHIVE` function can be fine-tuned using a range of hyperparameters. Below is a description of the key parameters:
 
