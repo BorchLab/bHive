@@ -12,7 +12,7 @@
   
 ### Introduction
 
-**bHIVE** is an R package implementing an Artificial Immune Network (AI-Net) algorithm. 
+**bHIVE** is an R package implementing an Artificial Immune Network ([AI-Net](https://www.dca.fee.unicamp.br/~vonzuben/research/lnunes_dout/artigos/DMHA.PDF)) algorithm. 
 Inspired by principles of immunology, the bHIVE algorithm evolves a population of 
 "antibodies" to model and analyze datasets. It supports three tasks:
 
