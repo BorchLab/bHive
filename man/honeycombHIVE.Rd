@@ -28,86 +28,58 @@ honeycombHIVE(
 )
 }
 \arguments{
-\item{X}{A numeric matrix or data frame of input features (rows = observations,
-columns = features).}
+\item{X}{A numeric matrix or data frame of input features (rows = observations, columns = features).}
 
-\item{y}{(Optional) A target vector for classification (factor) or regression
-(numeric). Ignored if \code{task = "clustering"} or if set to NULL.}
+\item{y}{Optional target vector (factor for classification, numeric for regression).}
 
-\item{task}{Character, one of \code{"clustering"}, \code{"classification"},
-\code{"regression"}.}
+\item{task}{Character, one of "clustering", "classification", or "regression".}
 
-\item{layers}{Integer, how many layers (iterations) to run.}
+\item{layers}{Integer, how many layers (AIS iterations) to run.}
 
-\item{nAntibodies}{Integer, how many antibodies (prototypes) to generate
-initially in each layer.}
+\item{nAntibodies}{Integer, how many antibodies (prototypes) to generate initially in each layer.}
 
-\item{minAntibodies}{Integer, minimal number of antibodies to keep in each
-layer (to avoid going below a certain threshold).}
+\item{minAntibodies}{Integer, minimal number of antibodies to keep in each layer.}
 
-\item{epsilon}{Numeric, threshold parameter passed to bHIVE.}
+\item{epsilon}{Numeric, threshold param for \code{bHIVE} suppression.}
 
-\item{beta}{Numeric, hyperparameter controlling selection pressure in bHIVE.}
+\item{beta}{Numeric, selection pressure param for \code{bHIVE}.}
 
-\item{maxIter}{Integer, maximum iterations for bHIVE in each layer.}
+\item{maxIter}{Integer, maximum iterations for \code{bHIVE} each layer.}
 
-\item{collapseMethod}{How to collapse each cluster: \code{"centroid"},
-\code{"medoid"}, \code{"median"}, \code{"mode"}. Default is \code{"centroid"}.}
+\item{collapseMethod}{One of "centroid","medoid","median","mode".}
 
-\item{minClusterSize}{If not NULL, minimum size of clusters. Smaller ones can be
-merged or discarded. Default \code{NULL} = no special handling.}
+\item{minClusterSize}{Minimum cluster size. Smaller clusters can be merged/discarded if not NULL.}
 
-\item{distance}{Distance metric used in the \code{dist} function for medoid
-calculation. Default \code{"euclidean"}.}
+\item{distance}{Distance metric for medoid calculation, e.g. "euclidean".}
 
-\item{verbose}{Logical, whether to print progress at each layer.}
+\item{verbose}{Logical, if TRUE prints progress at each layer.}
 
-\item{refine}{Logical. If TRUE, apply gradient-based refinement to each 
-layer's antibody positions via \code{refineB()}.}
+\item{refine}{Logical, if TRUE apply gradient-based refinement via \code{refineB()} to each layer's prototypes.}
 
-\item{refineLoss}{Character specifying the loss function if \code{refine=TRUE}.
-e.g. "mse","mae","categorical_crossentropy","binary_crossentropy","huber",
-"kullback_leibler", etc.}
+\item{refineLoss}{Character specifying the loss for \code{refineB()} (e.g. "mse", "mae", etc.).}
 
-\item{refineSteps}{Integer. Number of gradient steps in 
-\code{refineB()}.}
+\item{refineSteps}{Integer, # of gradient steps in \code{refineB()}.}
 
-\item{refineLR}{Numeric. Learning rate for gradient updates.}
+\item{refineLR}{Numeric, learning rate for gradient updates.}
 
-\item{refinePushAway}{Logical. If TRUE (classification only), push 
-prototypes away
-  from differently labeled points.}
+\item{refinePushAway}{Logical, if TRUE and classification, push prototypes away from differently labeled points.}
 
-\item{refineHuberDelta}{Numeric. Delta parameter if using the "huber" loss.}
+\item{refineHuberDelta}{Numeric, delta param if using the "huber" loss.}
 
-\item{...}{Additional parameters passed to \code{bHIVE}.}
+\item{...}{Additional arguments passed to \code{bHIVE}.}
 }
 \value{
 A list of length \code{layers}. Each element (layer) includes:
-\itemize{
-  \item \code{antibodies}: The prototype positions in that layer.
-  \item \code{assignments}: The antibody index assigned to each row of 
-  that layer's data.
-  \item \code{membership}: For each \strong{original} row of \code{X}, 
-  which cluster/antibody it belongs to in this layer.
-  \item \code{predictions}: For classification/regression, predicted label 
-  or numeric value for each \strong{original row in X}.
-  \item \code{task}: The specified task (clustering, classification, 
-  regression).
-}
+  \itemize{
+    \item \code{antibodies}: The prototypes in that layer.
+    \item \code{assignments}: Antibody index (in that layer) for each row of \code{current_X}.
+    \item \code{membership}: For each \strong{original} row in \code{X}, which cluster/antibody it belongs to in this layer.
+    \item \code{predictions}: If classification/regression, predicted label or numeric value for each original row in \code{X}.
+    \item \code{task}: The specified task.
+  }
 }
 \description{
-Implements a hierarchical Artificial Immune Network (AI-Net) algorithm with
-multiple layers, refining antibody populations iteratively to capture finer
-granularity in data patterns. Each layer processes the data based on the
-clusters (or assignments) from the previous layer, then collapses them into
-prototypes (antibodies) for the next iteration.
-}
-\details{
-For clustering, each cluster is replaced by a single representative
-(centroid, medoid, median, or mode). For classification, we also assign a
-label to each prototype by majority vote; for regression, we assign an
-average target value to each prototype.
+honeycombHIVE: Multilayer AIS with optional gradient-based fine-tuning
 }
 \examples{
 # Example 1: Clustering

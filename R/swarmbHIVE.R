@@ -26,8 +26,6 @@
 #'     \item \strong{Clustering}: "silhouette", "davies_bouldin", "calinski_harabasz"
 #'   }
 #' @param maxIter Integer. Maximum iterations for each \code{bHIVE} run (default 50).
-#' @param parallel Logical. If \code{TRUE}, attempts to run each parameter combination 
-#'   in parallel using \code{BiocParallel::bplapply()}.
 #' @param BPPARAM Character. A BiocParallel::bpparam() object that can be used for parallelization. 
 #' The function supports \code{SerialParam}, \code{MulticoreParam}, \code{BatchtoolsParam}, 
 #' and \code{SerialParam}.
@@ -53,11 +51,12 @@
 #' )
 #'
 #' # Perform hyperparameter tuning for classification
-#' tuning_results <- swarmbHIVE(
-#'   X = X, y = y, task = "classification", 
-#'   grid = grid, metric = "balanced_accuracy",
-#'   maxIter = 10, parallel = FALSE
-#' )
+#' tuning_results <- swarmbHIVE(X = X, 
+#'                              y = y, 
+#'                              task = "classification", 
+#'                              grid = grid, 
+#'                              metric = "balanced_accuracy",
+#'                              maxIter = 10)
 #'
 #' # For clustering with silhouette
 #' set.seed(42)
@@ -83,7 +82,6 @@ swarmbHIVE <- function(X,
                        grid,
                        metric = NULL,
                        maxIter = 50,
-                       parallel = FALSE,
                        BPPARAM = SerialParam(),
                        verbose = TRUE) {
   task <- match.arg(task)
@@ -246,12 +244,9 @@ swarmbHIVE <- function(X,
       n_combos, task, metric
     ))
   }
-  
-  # Potential parallel approach
+
   results_list <- NULL
-  if (parallel) {
-    results_list <- bplapply(
-      seq_len(n_combos),
+  results_list <- bplapply(seq_len(n_combos),
       function(i) {
         if (verbose) {
           cat(sprintf(
@@ -263,21 +258,6 @@ swarmbHIVE <- function(X,
       },
       BPPARAM = BPPARAM
     )
-  } else {
-    # Serial version
-    results_list <- lapply(
-      seq_len(n_combos),
-      function(i) {
-        if (verbose) {
-          cat(sprintf(
-            "Evaluating combo %d/%d: nAntibodies=%d, beta=%d, epsilon=%.3f\n",
-            i, n_combos, grid$nAntibodies[i], grid$beta[i], grid$epsilon[i]
-          ))
-        }
-        .evaluate_combo(grid[i, ])
-      }
-    )
-  }
   
   results_df <- do.call(rbind, results_list)
   rownames(results_df) <- NULL

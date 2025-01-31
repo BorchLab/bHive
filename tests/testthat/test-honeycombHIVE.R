@@ -20,7 +20,7 @@ test_that("honeycombHIVE runs successfully for clustering task", {
   for (layer in res) {
     expect_named(layer, c("antibodies", "assignments", "task", "membership"))
     expect_equal(layer$task, "clustering")
-    expect_true(is.data.frame(layer$antibodies))
+    expect_true(is.matrix(layer$antibodies))
     expect_true(is.numeric(layer$assignments))
     expect_equal(length(layer$membership), 150)
   }
@@ -47,7 +47,7 @@ test_that("honeycombHIVE runs successfully for classification task", {
   for (layer in res) {
     expect_named(layer, c("antibodies", "assignments", "task", "predictions", "membership" ))
     expect_equal(layer$task, "classification")
-    expect_true(is.data.frame(layer$antibodies))
+    expect_true(is.matrix(layer$antibodies))
   }
 })
 
@@ -74,7 +74,7 @@ test_that("honeycombHIVE runs successfully for regression task", {
   for (layer in res) {
     expect_named(layer, c("antibodies", "assignments", "predictions", "task", "membership"))
     expect_equal(layer$task, "regression")
-    expect_true(is.data.frame(layer$antibodies))
+    expect_true(is.matrix(layer$antibodies))
     expect_true(is.numeric(layer$assignments))
     expect_equal(length(layer$membership), 506)
   }
@@ -476,8 +476,7 @@ test_that("honeycombHIVE refineSteps=0 yields same result as refine=FALSE", {
   final_no_ref <- res_no_ref[[1]]$antibodies
   final_steps0 <- res_steps0[[1]]$antibodies
   
-  # If you do random seeds, you can set a seed to ensure identical. If not, do a tolerance check:
-  expect_equal(final_no_ref, as.data.frame(final_steps0), tolerance=1e-14)
+  expect_equal(final_no_ref, final_steps0, tolerance=1e-14)
 })
 
 test_that("honeycombHIVE refineLoss mismatch: attempts cross_entropy in regression => should error or fallback", {

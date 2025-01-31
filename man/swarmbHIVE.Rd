@@ -11,7 +11,6 @@ swarmbHIVE(
   grid,
   metric = NULL,
   maxIter = 50,
-  parallel = FALSE,
   BPPARAM = SerialParam(),
   verbose = TRUE
 )
@@ -36,9 +35,6 @@ other arguments to \code{bHIVE()}.)}
 }}
 
 \item{maxIter}{Integer. Maximum iterations for each \code{bHIVE} run (default 50).}
-
-\item{parallel}{Logical. If \code{TRUE}, attempts to run each parameter combination 
-in parallel using \code{BiocParallel::bplapply()}.}
 
 \item{BPPARAM}{Character. A BiocParallel::bpparam() object that can be used for parallelization. 
 The function supports \code{SerialParam}, \code{MulticoreParam}, \code{BatchtoolsParam}, 
@@ -81,11 +77,12 @@ grid <- expand.grid(
 )
 
 # Perform hyperparameter tuning for classification
-tuning_results <- swarmbHIVE(
-  X = X, y = y, task = "classification", 
-  grid = grid, metric = "balanced_accuracy",
-  maxIter = 10, parallel = FALSE
-)
+tuning_results <- swarmbHIVE(X = X, 
+                             y = y, 
+                             task = "classification", 
+                             grid = grid, 
+                             metric = "balanced_accuracy",
+                             maxIter = 10)
 
 # For clustering with silhouette
 set.seed(42)

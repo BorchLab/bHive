@@ -139,54 +139,59 @@ bHIVE <- function(X,
                   initMethod = c("sample", "random", "random_uniform", "kmeans++"), 
                   k = 3, 
                   verbose = TRUE) {
+  #TODO Parallel or batch approach to affinity matrix
+  # ====================================
+  # 0) Basic Validation & Task Inference
+  # ====================================
+  .validate_bHIVE_input(X, y)  
   
-  # Validate input data
-  .validate_bHIVE_input(X, y)
-  
-  # Infer task if not explicitly provided
   if (is.null(task)) {
-    task <- if (is.null(y)) {
-      "clustering"
+    if (is.null(y)) {
+      task <- "clustering"
     } else if (is.factor(y)) {
-      "classification"
+      task <- "classification"
     } else {
-      "regression"
+      task <- "regression"
     }
   }
-  if (!task %in% c("clustering","classification","regression")) {
-    stop("Invalid task. Choose from 'clustering', 'classification', 'regression'.")
-  }
+  task <- match.arg(task, c("clustering","classification","regression"))
   
-  initMethod <- match.arg(initMethod)
+  initMethod <- match.arg(initMethod, c("sample", "random", "random_uniform","kmeans++"))
+  
+  X <- as.matrix(X)
   n <- nrow(X)
   d <- ncol(X)
   
   # ===================
   # 1. Antibody Initialization
   # ===================
-  if (initMethod == "sample") {
-    # Randomly select existing data as initial antibodies
-    A <- X[sample.int(n, size=nAntibodies, replace=TRUE),,drop=FALSE]
-  } else if (initMethod == "random") {
-    # Gaussian around global mean/sd
-    xMean <- colMeans(X)
-    xSd   <- apply(X,2,sd)+1e-8
-    A <- matrix(rnorm(nAntibodies*d), nrow=nAntibodies, ncol=d)
-    A <- sweep(A, 2, xSd, `*`)
-    A <- sweep(A, 2, xMean, `+`)
-  } else if (initMethod == "random_uniform") {
-    xMin <- apply(X, 2, min)
-    xMax <- apply(X, 2, max)
-    A <- matrix(runif(nAntibodies*d), nrow=nAntibodies, ncol=d)
-    for (col_i in seq_len(d)) {
-      A[,col_i] <- xMin[col_i] + (xMax[col_i]-xMin[col_i]) * A[,col_i]
+  A <- switch(
+    initMethod,
+    "sample" = { X[sample.int(n, 
+                              size = nAntibodies, 
+                              replace = TRUE), , drop=FALSE] },
+    "random" = { xMean <- colMeans(X)
+                 xSd   <- apply(X, 2, sd) + 1e-8
+                 mat   <- matrix(rnorm(nAntibodies * d), nrow = nAntibodies)
+                 mat   <- sweep(mat, 2, xSd, `*`)
+                 sweep(mat, 2, xMean, `+`)},
+    "random_uniform" = { xMin <- apply(X, 2, min)
+                         xMax <- apply(X, 2, max)
+                         mat  <- matrix(runif(nAntibodies * d), nrow = nAntibodies)
+                         for (col_i in seq_len(d)) {
+                           range_i <- xMax[col_i] - xMin[col_i]
+                           mat[, col_i] <- xMin[col_i] + range_i * mat[, col_i]
+                         }
+                        mat},
+    "kmeans++" = {
+      .init_kmeanspp(X, nAntibodies)  # Assume you have a kmeans++ init function
     }
-  } else if (initMethod == "kmeans++") {
-    A <- .init_kmeanspp(X, nAntibodies)
+  )
+  if (!is.matrix(A) || nrow(A) == 0) {
+    stop("Initialization of antibodies failed. Check nAntibodies and input X.")
   }
-  if (nrow(A)==0) {
-    stop("Initialization failed. Check nAntibodies and input X.")
-  }
+  
+  m <- nrow(A) 
   
   # ===================
   # 2. Pick Affinity & Distance
@@ -210,18 +215,24 @@ bHIVE <- function(X,
   # ===================
   # 3. Task-Specific Setup
   # ===================
-  if (task=="classification") {
+  if (task == "classification") {
     classes <- levels(y)
-    class_counts <- matrix(0, nrow=nAntibodies, ncol=length(classes))
+    nClasses <- length(classes)
+    class_counts <- matrix(0, nrow = m, ncol = nClasses)
     colnames(class_counts) <- classes
-  } else if (task=="regression") {
-    sum_y   <- numeric(nrow(A))
-    sum_aff <- numeric(nrow(A))
+  } else if (task == "regression") {
+    sum_y   <- numeric(m)
+    sum_aff <- numeric(m)
+    overall_mean <- mean(y, na.rm=TRUE)  # only compute once
   }
   
-  # iterative training
-  noImprovementCount <- 0
-  prevAntibodyCount <- nrow(A)
+  # For early stopping
+  noImproveCount <- 0
+  prevCount <- m
+  
+  # ======================
+  # 4) Main Iteration Loop
+  # ======================
   
   for (iter in seq_len(maxIter)) {
     # reset counters
@@ -235,39 +246,52 @@ bHIVE <- function(X,
     # For each data point
     for (i in seq_len(n)) {
       x_i <- X[i,]
-      # compute affinity
-      aff_values <- apply(A, 1, function(a_j) affFn(x_i, a_j, affinityParams))
-      max_aff <- max(aff_values, na.rm=TRUE)
-      if (max_aff==0 || is.na(max_aff)) next
       
-      # top k
-      top_idx <- order(aff_values, decreasing=TRUE)[seq_len(min(k,length(aff_values)))]
+      # compute affinity
+      aff_values <- numeric(m)
+      for (j in seq_len(m)) {
+        aff_values[j] <- affFn(x_i, A[j, ], affinityParams)
+      }
+      
+      # If max affinity is zero or NA => skip
+      max_aff <- max(aff_values, na.rm = TRUE)
+      if (max_aff == 0 || is.na(max_aff)) next
+      
+      #Identify top k antibodies
+      k2 <- min(k, m)
+      top_idx <- sort.int(aff_values, decreasing=TRUE, index.return=TRUE)$ix[1:k2]
       
       # classification/regression counters
-      if (task=="classification") {
-        yclass <- as.character(y[i])
-        class_col <- match(yclass, colnames(class_counts))
-        for (idx_j in top_idx) {
-          class_counts[idx_j, class_col] <- class_counts[idx_j, class_col] + aff_values[idx_j]
+      if (task == "classification") {
+        y_class <- as.character(y[i])
+        class_col <- match(y_class, colnames(class_counts))
+        # Weighted vote
+        for (jj in top_idx) {
+          class_counts[jj, class_col] <- class_counts[jj, class_col] + aff_values[jj]
         }
-      } else if (task=="regression") {
+      } else if (task == "regression") {
         # Weighted sum
-        for (idx_j in top_idx) {
-          sum_y[idx_j]   <- sum_y[idx_j] + (y[i]*aff_values[idx_j])
-          sum_aff[idx_j] <- sum_aff[idx_j] + aff_values[idx_j]
+        y_val <- y[i]
+        for (jj in top_idx) {
+          sum_y[jj]   <- sum_y[jj] + y_val * aff_values[jj]
+          sum_aff[jj] <- sum_aff[jj] + aff_values[jj]
         }
       }
       
       # clone/mutate
-      for (j in top_idx) {
-        f_j <- aff_values[j]
+      for (jj in top_idx) {
+        f_j <- aff_values[jj]
         nClones <- min(maxClones, floor(beta * (f_j / max_aff)))
-        for (cloneId in seq_len(nClones)) {
-          mutation_rate <- max((1.0 - f_j)*mutationDecay^(iter-1), mutationMin)
-          mutated <- A[j,] + rnorm(d, mean=0, sd=mutation_rate)
+        if (nClones <= 0) next
+        
+        for (clone_id in seq_len(nClones)) {
+          # decayed mutation rate for iteration
+          mutation_rate <- max((1.0 - f_j) * mutationDecay^(iter - 1), mutationMin)
+          # propose mutated antibody
+          mutated   <- A[jj, ] + rnorm(d, mean=0, sd=mutation_rate)
           f_mutated <- affFn(x_i, mutated, affinityParams)
           if (f_mutated > f_j) {
-            A[j,] <- mutated
+            A[jj, ] <- mutated  # keep improvement
           }
         }
       }
@@ -285,102 +309,151 @@ bHIVE <- function(X,
         }
       })
     } else if (task=="regression") {
-      overall_mean <- mean(y)
       antibody_values <- ifelse(sum_aff>0, sum_y/sum_aff, overall_mean)
     }
     
-    # network suppression
-    keep <- rep(TRUE, nrow(A))
-    for (u in seq_len(nrow(A)-1)) {
+    # ======================
+    # 5) Network Suppression
+    # =======================
+    keep <- rep(TRUE, m)
+    for (u in seq_len(m - 1)) {
       if (!keep[u]) next
-      for (v in seq(u+1, nrow(A))) {
+      for (v in seq.int(u+1, m)) {
         if (!keep[v]) next
-        dist_uv <- distFn(A[u,], A[v,], affinityParams)
-        if (dist_uv<epsilon) {
+        #TODO Possible point of improvement approximate with RANN or Annoy
+        dist_uv <- distFn(A[u, ], A[v, ], affinityParams)
+        if (dist_uv < epsilon) {
           keep[v] <- FALSE
         }
       }
     }
-    A <- A[keep,,drop=FALSE]
+    # Subset the antibodies
+    A <- A[keep, , drop=FALSE]
+    m_new <- nrow(A)
     
     if (task=="classification") {
       class_counts <- class_counts[keep,,drop=FALSE]
     } else if (task=="regression") {
+      #antibody_values <- antibody_values[keep]
       antibody_values <- ifelse(keep, antibody_values, mean(y, na.rm = TRUE))
     }
     
-    if (nrow(A)==0) {
+    #If suppressed everything => abort
+    if (m_new == 0) {
       stop("All antibodies were suppressed. Increase nAntibodies or decrease epsilon.")
     }
     
-    # early stopping check
-    currentCount <- nrow(A)
-    changeInCount <- abs(currentCount - prevAntibodyCount)
-    if (changeInCount <= stopTolerance) {
-      noImprovementCount <- noImprovementCount+1
+    # For next iteration
+    m <- m_new
+    
+    # ========================
+    # 6) Early Stopping Check
+    # ========================
+    changeCount <- abs(m - prevCount)
+    if (changeCount <= stopTolerance) {
+      noImproveCount <- noImproveCount + 1
     } else {
-      noImprovementCount <- 0
+      noImproveCount <- 0
     }
-    prevAntibodyCount <- currentCount
-    if (noImprovementCount >= noImprovementLimit) {
+    prevCount <- m
+    
+    if (noImproveCount >= noImprovementLimit) {
       if (verbose) {
-        cat("Early stopping: no improvement for", noImprovementCount, "iters.\n")
+        cat("Early stopping: no improvement for", noImproveCount, "iterations.\n")
       }
       break
     }
+    
     if (verbose) {
       cat(sprintf("Iteration %d | #Antibodies: %d | noImproveCount: %d\n",
-                  iter, currentCount, noImprovementCount))
+                  iter, m, noImproveCount))
     }
   }
   
-  # ===============
-  # Final assignments
-  # ===============
-  if (task=="clustering") {
-    # integer cluster IDs in [1..nrow(A)]
-    assignments <- apply(X, 1, function(x_i) {
-      distances <- apply(A, 1, function(a_j) distFn(x_i, a_j, affinityParams))
-      which.min(distances)
-    })
-    # relabel from 1..#unique
-    assignments <- as.numeric(factor(assignments))
-    res <- list(
-      antibodies = A,
-      assignments = assignments,
-      task = task
-    )
-    
-  } else if (task=="classification") {
-    # predicted labels
-    assignments <- apply(X, 1, function(x_i) {
-      aff_values <- apply(A, 1, function(a_j) affFn(x_i, a_j, affinityParams))
-      idx <- which.max(aff_values)
-      antibody_classes[idx]
-    })
-    res <- list(
-      antibodies = A,
-      assignments = assignments,
-      task = task
-    )
-    
-  } else { # regression
-    # numeric predictions
-    predictions <- apply(X, 1, function(x_i) {
-      aff <- apply(A, 1, function(a_j) affFn(x_i, a_j, affinityParams))
-      if (sum(aff)==0) {
-        mean(y)
-      } else {
-        sum(aff * antibody_values, na.rm=TRUE)/sum(aff)
+  # =====================
+  # 7) Final assignments
+  # =====================
+  if (task == "clustering") {
+    # Find nearest antibody by distance => cluster IDs
+    assignments <- integer(n)
+    for (i in seq_len(n)) {
+      x_i <- X[i, ]
+      min_dist <- Inf
+      best_j <- NA
+      for (j in seq_len(m)) {
+        d_j <- distFn(x_i, A[j, ], affinityParams)
+        if (d_j < min_dist) {
+          min_dist <- d_j
+          best_j <- j
+        }
       }
-    })
+      assignments[i] <- best_j
+    }
+    # optionally re-label cluster IDs from 1..m
+    assignments <- as.numeric(factor(assignments))
     
-    # Also produce an integer cluster index in [1..nrow(A)],
-    # so that refineB or any other function can treat it like "closest prototype."
-    cluster_assign <- apply(X, 1, function(x_i) {
-      dist_vec <- apply(A, 1, function(a_j) distFn(x_i, a_j, affinityParams))
-      which.min(dist_vec)
-    })
+    res <- list(
+      antibodies  = A,
+      assignments = assignments,
+      task        = task
+    )
+    
+  } else if (task == "classification") {
+    # For each data row, choose the antibody with largest affinity
+    assignments <- character(n)
+    for (i in seq_len(n)) {
+      x_i <- X[i, ]
+      best_aff <- -Inf
+      best_j <- 1L
+      for (j in seq_len(m)) {
+        f_j <- affFn(x_i, A[j, ], affinityParams)
+        if (f_j > best_aff) {
+          best_aff <- f_j
+          best_j <- j
+        }
+      }
+      assignments[i] <- antibody_classes[best_j]
+    }
+    
+    res <- list(
+      antibodies  = A,
+      assignments = assignments,
+      task        = task
+    )
+    
+  } else {
+    # Regression
+    # predictions for each data row => weighted average of antibody_values
+    predictions <- numeric(n)
+    for (i in seq_len(n)) {
+      x_i <- X[i, ]
+      aff_vec <- numeric(m)
+      for (j in seq_len(m)) {
+        aff_vec[j] <- affFn(x_i, A[j, ], affinityParams)
+      }
+      s_aff <- sum(aff_vec, na.rm=TRUE)
+      if (s_aff == 0) {
+        predictions[i] <- overall_mean
+      } else {
+        predictions[i] <- sum(aff_vec * antibody_values, na.rm=TRUE) / s_aff
+      }
+    }
+    
+    # produce integer cluster index => nearest by distance
+    cluster_assign <- integer(n)
+    for (i in seq_len(n)) {
+      x_i <- X[i, ]
+      min_dist <- Inf
+      best_j <- 1L
+      for (j in seq_len(m)) {
+        d_j <- distFn(x_i, A[j, ], affinityParams)
+        if (d_j < min_dist) {
+          min_dist <- d_j
+          best_j <- j
+        }
+      }
+      cluster_assign[i] <- best_j
+    }
     
     res <- list(
       antibodies  = A,
