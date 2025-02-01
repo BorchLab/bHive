@@ -5,9 +5,8 @@
 <img align="right" src="https://github.com/BorchLab/bHive/blob/main/www/bhive_hex.png" width="305" height="352">
 
 <!-- badges: start -->
-[![R-CMD-check](https://github.com/ncborcherding/bHive/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/ncborcherding/bHive/actions/workflows/R-CMD-check.yaml)
-[![Codecov test coverage](https://codecov.io/gh/ncborcherding/bHive/graph/badge.svg)](https://app.codecov.io/gh/ncborcherding/bHive)
-[![Documentation](https://img.shields.io/badge/docs-stable-blue.svg)](https://www.borch.dev/uploads/screpertoire/)
+[![R-CMD-check](https://github.com/BorchLab/bHive/actions/workflows/R-CMD-check.yaml/badge.svg)](https://github.com/BorchLab/bHive/actions/workflows/R-CMD-check.yaml)
+[![Codecov test coverage](https://codecov.io/gh/BorchLab/bHive/graph/badge.svg)](https://app.codecov.io/gh/BorchLab/bHive)
 <!-- badges: end -->
   
 ### Introduction
