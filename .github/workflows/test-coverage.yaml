@@ -39,12 +39,10 @@ jobs:
 
       - uses: codecov/codecov-action@v4
         with:
-          # Fail if error if not on PR, or if on PR and token is given
-          fail_ci_if_error: ${{ github.event_name != 'pull_request' || secrets.CODECOV_TOKEN }}
+          fail_ci_if_error: true  # Ensure the workflow fails if Codecov upload fails
           file: ./cobertura.xml
           plugin: noop
           disable_search: true
-          token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Show testthat output
         if: always()
