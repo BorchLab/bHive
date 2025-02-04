@@ -321,17 +321,24 @@ Note: If you use `task = "classification"` or `task = "regression"`, honeycombHI
 
 ## Gradient-based Refinement
 
-The ```refineB()``` function can further tune or adjust the antibody prototypes learned by the ```bHIVE()``` algorithm. In particular:
+The ```refineB()``` function takes the prototypes produced by the ```bHIVE()``` algorithm and fine-tunes them using gradient‐based updates. In addition to the basic parameters:
 
-* **loss**: The loss function used to guide refinement. For a classification task, `"categorical_crossentropy"` is a typical choice.
-* **steps**: The number of gradient-based updates.
-* **lr**: The learning rate used in each gradient update step.
+* **loss:** The loss function used to guide refinement. For a classification task, "categorical_crossentropy" is a typical choice.
+* **steps:** The number of gradient update iterations.
+* **lr:** The learning rate for each update.
+* **optimizers** 
+  * *sgd:* Standard stochastic gradient descent.
+  * *momentum:* SGD with momentum. (Control the momentum with **momentum_coef**).
+  * *adagrad:* Adaptive gradient descent.
+  * *adam:* Adaptive moment estimation. (Control the decay rates with **beta1** and **beta2**).
+  * *rmsprop:* Root Mean Square Propagation. (Control the decay of the squared gradient average with **rmsprop_decay**)
 
 ```{r tidy=FALSE}
+# Prepare the Iris dataset
 X <- as.matrix(iris[, 1:4])
 y <- iris$Species
 
-# Perform classification
+# Run bHIVE to obtain initial antibody prototypes.
 set.seed(42)
 res <- bHIVE(X = X, 
              y = y, 
@@ -346,65 +353,88 @@ res <- bHIVE(X = X,
 Ab <- res$antibodies
 colnames(Ab) <- colnames(X)
 assignments <- res$assignments 
+# Ensure assignments are numeric indices.
+assignments <- as.integer(factor(assignments, levels = unique(assignments)))
 
-assignments <- as.integer(factor(res$assignments , levels = unique(res$assignments )))
+# PCA of the Iris data for visualization in 2D
+pca <- prcomp(X, scale. = TRUE)
+X_pca <- pca$x[, 1:2]
+colnames(X_pca) <- c("PC1", "PC2")
+# Transform initial prototypes into PCA space.
+A_bhive_pca <- predict(pca, Ab)
 
-# Refining Antibodies
-Ab_refined <- refineB(A = Ab,
-                      X = X, 
-                      y = y,
-                      assignments = assignments,
-                      loss="categorical_crossentropy", 
-                      task="classification", 
-                      steps=5, 
-                      lr=0.01,
-                      verbose = FALSE)
-colnames(Ab_refined) <- colnames(X)
+# Run refinement using several optimizers.
+optimizers <- c("sgd", "adam", "rmsprop")
+refined_list <- lapply(optimizers, function(opt) {
+  Ab_refined <- refineB(A = Ab,
+                        X = X, 
+                        y = y,
+                        assignments = assignments,
+                        loss = "categorical_crossentropy", 
+                        task = "classification", 
+                        steps = 5, 
+                        lr = 0.01,
+                        verbose = FALSE,
+                        optimizer = opt,
+                        beta1 = 0.9,
+                        beta2 = 0.999,
+                        rmsprop_decay = 0.9)
+  colnames(Ab_refined) <- colnames(X)
+  A_refined_pca <- predict(pca, Ab_refined)
+  data.frame(optimizer = opt,
+             PC1_after = A_refined_pca[,1],
+             PC2_after = A_refined_pca[,2])
+})
+refined_df <- do.call(rbind, refined_list)
+refined_df$optimizer <- factor(refined_df$optimizer, levels = optimizers)
 
-# PCA for the Iris data set
-pca <- prcomp(X, scale.=TRUE)
-X_pca <- pca$x[,1:2]        
-colnames(X_pca) <- c("PC1","PC2")
-
-# Antibodies in PCA space
-A_bhive_pca   <- predict(pca, Ab)
-A_refined_pca <- predict(pca, Ab_refined)
-
-# Build a data frame for ggplot
-plot_data <- data.frame(PC1 = X_pca[,1],
-                        PC2 = X_pca[,2],
+# Build a data frame for the data points (colored by their bHIVE assignment)
+plot_data <- data.frame(PC1 = X_pca[, 1],
+                        PC2 = X_pca[, 2],
                         Cluster = factor(assignments))
 
-proto_df <- data.frame(PC1_before = A_bhive_pca[,1],
-                       PC2_before = A_bhive_pca[,2],
-                       PC1_after  = A_refined_pca[,1],
-                       PC2_after  = A_refined_pca[,2],
-                       ID = 1:nrow(A_bhive_pca))
+# Build a data frame for original prototypes (same for every optimizer)
+proto_df <- data.frame(ID = 1:nrow(A_bhive_pca),
+                       PC1_before = A_bhive_pca[,1],
+                       PC2_before = A_bhive_pca[,2])
+proto_df$ID <- factor(proto_df$ID)
 
+# Add an ID to the refined data for merging.
+refined_df$ID <- factor(rep(1:nrow(A_bhive_pca), times = length(optimizers)))
+
+# Merge the original and refined prototypes by ID.
+merged_df <- merge(proto_df, refined_df, by = "ID")
+
+# Visualizing data and refined prototypes
 ggplot() +
-  geom_point(data=plot_data, 
-             aes(x=PC1, y=PC2, color=Cluster), alpha=0.6) +
-  geom_point(data=proto_df, #Original Antibodies
-             aes(x=PC1_before, y=PC2_before),
-             color="#440154", size=4) +
-  geom_point(data=proto_df, #New Antibodies
-              aes(x=PC1_after, y=PC2_after),
-              color="#FDE725", size=4) +
-  geom_segment(data=proto_df,
-               aes(x=PC1_before, y=PC2_before, xend=PC1_after,
-                   yend=PC2_after),
-                   arrow = arrow(length=unit(0.2,"cm"), type = "closed"),
-               color="black", size=1, lwd = 0.5) + 
-  scale_color_viridis(discrete = TRUE) + 
-  labs(title="bHIVE vs. refineB\n(antibodies in PCA space)") +
-  theme_minimal()
+  geom_point(data = plot_data, 
+             aes(x = PC1, y = PC2, color = Cluster), alpha = 0.6) +
+  geom_point(data = proto_df, 
+             aes(x = PC1_before, y = PC2_before),
+             color = "#440154", size = 4) +
+  geom_point(data = merged_df, 
+             aes(x = PC1_after, y = PC2_after),
+             color = "#FDE725", size = 4) +
+  geom_segment(data = merged_df,
+               aes(x = PC1_before, y = PC2_before, 
+                   xend = PC1_after, yend = PC2_after),
+               arrow = arrow(length = unit(0.2, "cm"), type = "closed"),
+               color = "black", size = 0.5) +
+  scale_color_viridis(discrete = TRUE) +
+  labs(title = "Prototype Refinement in PCA Space",
+       x = "PC1", 
+       y = "PC2") +
+  facet_wrap(~ optimizer, nrow = 1,
+             labeller = as_labeller(c(sgd = "SGD", adam = "Adam", rmsprop = "RMSProp"))) +
+  theme_minimal() +
+  theme(plot.title = element_text(face = "bold", size = 14),
+        strip.text = element_text(face = "bold"))
 ```
 
 **Interpretation**
-* Each **dot** in PCA space represents a **sample** from the Iris dataset, colored by its assigned antibody or cluster (`assignments`).
-* The **purple points** are the **initial** antibody positions.
-* The **yellow points** show the **refined** positions ```refineB()````.
-* The **black arrows** illustrate how each antibody has been updated in feature space to improve its performance based on the selected loss function.
+* Data points are shown in a light transparency, colored by their cluster assignments (as determined by the original bHIVE algorithm).
+* Initial prototypes are shown in dark purple. These are the prototypes (antibodies) before refinement.
+* Refined prototypes are shown in bright yellow. The arrows indicate the direction and magnitude of the update from the original positions to the refined positions.
 
 **Applying Refinement to honeycombHIVE**
 

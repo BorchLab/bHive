@@ -29,6 +29,11 @@ hyperparameter tuning, cross-validation, and performance evaluation.
           redundant antibodies.
     \item \code{layers}: Number of hierarchical layers for iterative
           refinement.
+    \item \code{refineOptimizer}: Optimizer for gradient-based refinement
+          (e.g. "sgd", "momentum", "adagrad", "adam", "rmsprop").
+    \item \code{refineSteps}: Number of gradient update steps in refinement.
+    \item \code{refineLR}: Learning rate for refinement.
+    \item \code{refineHuberDelta}: Delta parameter used if the "huber" loss is chosen.
   }
 }
 
@@ -61,7 +66,11 @@ hyperparameter tuning, cross-validation, and performance evaluation.
       nAntibodies = c(10, 20),
       beta = c(3, 5),
       epsilon = c(0.01, 0.05),
-      layers = c(1, 2)
+      layers = c(1, 2),
+      refineOptimizer = "adam",
+      refineSteps = 5,
+      refineLR = 0.01,
+      refineHuberDelta = 1.0
     )
   )
   print(model)

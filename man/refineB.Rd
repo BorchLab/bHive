@@ -2,7 +2,8 @@
 % Please edit documentation in R/refineB.R
 \name{refineB}
 \alias{refineB}
-\title{refineB: Gradient-based fine-tuning for bHIVE antibodies with multiple loss functions}
+\title{refineB: Gradient-based fine-tuning for bHIVE antibodies with multiple loss 
+functions and optimizers}
 \usage{
 refineB(
   A,
@@ -16,7 +17,13 @@ refineB(
   lr = 0.01,
   push_away = TRUE,
   huber_delta = 1,
-  verbose = TRUE
+  verbose = TRUE,
+  optimizer = c("sgd", "momentum", "adagrad", "adam", "rmsprop"),
+  momentum_coef = 0.9,
+  beta1 = 0.9,
+  beta2 = 0.999,
+  rmsprop_decay = 0.9,
+  epsilon = 1e-08
 )
 }
 \arguments{
@@ -26,13 +33,13 @@ refineB(
 
 \item{y}{Optional. Factor (classification), numeric (regression), or NULL (clustering).}
 
-\item{assignments}{Integer vector (length=nSamples), specifying the antibody index
-each sample belongs to (1..nAb).}
+\item{assignments}{Integer or character vector (length = nSamples), specifying the antibody index
+(or label) each sample belongs to.}
 
-\item{task}{One of c("clustering","classification","regression").}
+\item{task}{One of \code{c("clustering", "classification", "regression")}.}
 
-\item{loss}{One of c("categorical_crossentropy","binary_crossentropy",
-"kullback_leibler","cosine","mse","mae","poisson","huber").}
+\item{loss}{One of \code{c("categorical_crossentropy", "binary_crossentropy",
+"kullback_leibler", "cosine", "mse", "mae", "poisson", "huber")}.}
 
 \item{steps}{Integer. How many gradient steps to run.}
 
@@ -43,17 +50,29 @@ from differently-labeled samples.}
 
 \item{huber_delta}{Numeric. The delta threshold if using huber loss.}
 
-\item{verbose}{Logical. If \code{TRUE}, prints progress messages each 
-iteration.}
+\item{verbose}{Logical. If \code{TRUE}, prints progress messages each iteration.}
+
+\item{optimizer}{One of \code{c("sgd", "momentum", "adagrad", "adam", "rmsprop")}. Specifies the
+gradient-based optimization approach.}
+
+\item{momentum_coef}{Numeric. Momentum coefficient (used if \code{optimizer=="momentum"}).}
+
+\item{beta1}{Numeric. Exponential decay rate for the first moment estimates (used in Adam).}
+
+\item{beta2}{Numeric. Exponential decay rate for the second moment estimates (used in Adam).}
+
+\item{rmsprop_decay}{Numeric. Decay factor for the squared gradient moving average (used in RMSProp).}
+
+\item{epsilon}{Numeric. A small constant for numerical stability.}
 }
 \value{
-Updated matrix A of shape (nAb x d).
+Updated matrix \code{A} of shape (nAb x d).
 }
 \description{
-After running bHIVE (or honeycombHIVE), you have a set of final antibody positions (A)
-in feature space. This function refines those prototypes by iterating over the
-data points assigned to each antibody and applying small gradient-based updates
-according to a user-chosen loss function.
+After running \code{bHIVE} (or within \code{honeycombHIVE}), you have a set of 
+final antibody positions (A) in feature space. This function refines those
+prototypes by iterating over the data points assigned to each antibody and 
+applying gradient-based updates using a user-chosen loss function and optimizer.
 }
 \details{
 The user must provide:
@@ -61,9 +80,9 @@ The user must provide:
 - A numeric matrix/data frame \code{X} of data (nSamples x nFeatures).
 - Optional \code{y} for classification/regression. If \code{task="clustering"},
   \code{y} can be NULL or ignored.
-- An integer vector \code{assignments} (length = nSamples) giving the
-  antibody index to which each data point is assigned (range 1..nAb).
-  
+- An integer or character vector \code{assignments} (length=nSamples) giving the
+  antibody index (or label) to which each data point is assigned.
+
 ## Available Losses
 
 ### Classification (factor y)
@@ -85,9 +104,15 @@ The user must provide:
 - **"huber"**: Combines L1 and L2 regions, uses a delta cutoff. We adapt it
   to a naive per-point gradient in feature space.
 
+## Available Optimizers
+- **"sgd"**: Basic stochastic gradient descent.
+- **"momentum"**: SGD with momentum.
+- **"adagrad"**: Adaptive gradient descent.
+- **"adam"**: Adaptive moment estimation.
+- **"rmsprop"**: Root Mean Square Propagation.
 
-This function does a simple mini-SGD loop over each data point in random order.
-For classification, it identifies whether the data point shares the antibody's
-"dominant label" and pulls/pushes accordingly. For regression/clustering, it
-primarily pulls prototypes toward assigned points.
+
+This function performs gradient-based updates on each antibody using the selected loss function.
+Depending on the chosen \code{optimizer}, it may use plain SGD, momentum-based updates, Adagrad,
+Adam, or RMSProp.
 }

@@ -6,11 +6,9 @@
 #' diversity, and assigns data points based on affinity or distance metrics.
 #'
 #' @param X A numeric matrix or data frame of input features, with rows as 
-#' observations 
-#'   and columns as features.
+#' observations and columns as features.
 #' @param y Optional. A target vector. Use for classification (factor) or 
-#' regression (numeric).
-#'   If NULL, clustering will be performed.
+#' regression (numeric). If NULL, clustering will be performed.
 #' @param task Character. Specifies the task to perform: \code{"clustering"}, 
 #' \code{"classification"}, or \code{"regression"}. If NULL, it is inferred 
 #' based on \code{y}.
@@ -140,6 +138,7 @@ bHIVE <- function(X,
                   k = 3, 
                   verbose = TRUE) {
   #TODO Parallel or batch approach to affinity matrix
+  #TODO Can we make specialized antibodies similar to isotypes?
   # ====================================
   # 0) Basic Validation & Task Inference
   # ====================================

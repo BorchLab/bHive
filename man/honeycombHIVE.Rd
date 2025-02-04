@@ -24,21 +24,31 @@ honeycombHIVE(
   refineLR = 0.01,
   refinePushAway = TRUE,
   refineHuberDelta = 1,
+  refineOptimizer = "sgd",
+  refineMomentumCoef = 0.9,
+  refineBeta1 = 0.9,
+  refineBeta2 = 0.999,
+  refineRmspropDecay = 0.9,
+  refineEpsilon = 1e-08,
   ...
 )
 }
 \arguments{
-\item{X}{A numeric matrix or data frame of input features (rows = observations, columns = features).}
+\item{X}{A numeric matrix or data frame of input features 
+(rows = observations, columns = features).}
 
-\item{y}{Optional target vector (factor for classification, numeric for regression).}
+\item{y}{Optional target vector (factor for classification, numeric 
+for regression).}
 
 \item{task}{Character, one of "clustering", "classification", or "regression".}
 
 \item{layers}{Integer, how many layers (AIS iterations) to run.}
 
-\item{nAntibodies}{Integer, how many antibodies (prototypes) to generate initially in each layer.}
+\item{nAntibodies}{Integer, how many antibodies (prototypes) to generate 
+initially in each layer.}
 
-\item{minAntibodies}{Integer, minimal number of antibodies to keep in each layer.}
+\item{minAntibodies}{Integer, minimal number of antibodies to keep in each 
+layer.}
 
 \item{epsilon}{Numeric, threshold param for \code{bHIVE} suppression.}
 
@@ -48,23 +58,42 @@ honeycombHIVE(
 
 \item{collapseMethod}{One of "centroid","medoid","median","mode".}
 
-\item{minClusterSize}{Minimum cluster size. Smaller clusters can be merged/discarded if not NULL.}
+\item{minClusterSize}{Minimum cluster size. Smaller clusters can be 
+merged/discarded if not NULL.}
 
 \item{distance}{Distance metric for medoid calculation, e.g. "euclidean".}
 
 \item{verbose}{Logical, if TRUE prints progress at each layer.}
 
-\item{refine}{Logical, if TRUE apply gradient-based refinement via \code{refineB()} to each layer's prototypes.}
+\item{refine}{Logical, if TRUE apply gradient-based refinement via 
+\code{refineB()} to each layer's prototypes.}
 
-\item{refineLoss}{Character specifying the loss for \code{refineB()} (e.g. "mse", "mae", etc.).}
+\item{refineLoss}{Character specifying the loss for \code{refineB()} 
+(e.g. "mse", "mae", etc.).}
 
-\item{refineSteps}{Integer, # of gradient steps in \code{refineB()}.}
+\item{refineSteps}{Integer, number of gradient steps in \code{refineB()}.}
 
 \item{refineLR}{Numeric, learning rate for gradient updates.}
 
-\item{refinePushAway}{Logical, if TRUE and classification, push prototypes away from differently labeled points.}
+\item{refinePushAway}{Logical, if TRUE and classification, push prototypes 
+away from differently labeled points.}
 
-\item{refineHuberDelta}{Numeric, delta param if using the "huber" loss.}
+\item{refineHuberDelta}{Numeric, delta parameter if using the "huber" loss.}
+
+\item{refineOptimizer}{Character, one of \code{"sgd", "momentum", "adagrad", 
+"adam", "rmsprop"} to be passed to \code{refineB()}.}
+
+\item{refineMomentumCoef}{Numeric, momentum coefficient (if using momentum).}
+
+\item{refineBeta1}{Numeric, first moment decay rate (if using Adam).}
+
+\item{refineBeta2}{Numeric, second moment decay rate (if using Adam).}
+
+\item{refineRmspropDecay}{Numeric, decay rate for the moving average of 
+squared gradients (if using RMSProp).}
+
+\item{refineEpsilon}{Numeric, a small constant for numerical stability 
+(used in adaptive optimizers).}
 
 \item{...}{Additional arguments passed to \code{bHIVE}.}
 }
@@ -72,14 +101,29 @@ honeycombHIVE(
 A list of length \code{layers}. Each element (layer) includes:
   \itemize{
     \item \code{antibodies}: The prototypes in that layer.
-    \item \code{assignments}: Antibody index (in that layer) for each row of \code{current_X}.
-    \item \code{membership}: For each \strong{original} row in \code{X}, which cluster/antibody it belongs to in this layer.
-    \item \code{predictions}: If classification/regression, predicted label or numeric value for each original row in \code{X}.
+    \item \code{assignments}: Antibody index (in that layer) for each row 
+    of \code{current_X}.
+    \item \code{membership}: For each \strong{original} row in \code{X}, 
+    which cluster/antibody it belongs to in this layer.
+    \item \code{predictions}: If classification/regression, predicted label 
+    or numeric value for each original row in \code{X}.
     \item \code{task}: The specified task.
   }
 }
 \description{
-honeycombHIVE: Multilayer AIS with optional gradient-based fine-tuning
+The \code{honeycombHIVE} function implements a multilayer artificial immune 
+system that iteratively refines a set of prototypes - referred to as 
+antibodies - to model the structure of the input data. In each layer, the 
+function first uses the \code{\link{bHIVE}} algorithm to generate or update 
+antibodies based on the current data representation and task (clustering, 
+classification, or regression). Optionally, it applies gradient-based 
+fine-tuning (via \code{\link{refineB}}) to these antibodies, allowing for 
+advanced refinement through various optimizers (e.g., SGD, Adam, RMSProp) and 
+customizable loss functions. The final output is a hierarchical set of layers 
+that encapsulate both the refined prototypes and the corresponding cluster 
+assignments or predictions for the original observations, making 
+\code{honeycombHIVE} a versatile tool for adaptive learning and pattern 
+recognition.
 }
 \examples{
 # Example 1: Clustering
@@ -93,8 +137,6 @@ resC <- honeycombHIVE(
   beta = 5,
   maxIter = 10
 )
-# Final cluster membership of original rows:
-head(resC[[3]]$membership)
 
 # Example 2: Regression
 set.seed(42)
@@ -107,7 +149,5 @@ resReg <- honeycombHIVE(
   layers = 3,
   nAntibodies = 10
 )
-# Compare final predictions to original y:
-cor(resReg[[3]]$predictions, y_reg)
 
 }

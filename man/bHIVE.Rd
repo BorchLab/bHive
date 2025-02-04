@@ -27,12 +27,10 @@ bHIVE(
 }
 \arguments{
 \item{X}{A numeric matrix or data frame of input features, with rows as 
-observations 
-  and columns as features.}
+observations and columns as features.}
 
 \item{y}{Optional. A target vector. Use for classification (factor) or 
-regression (numeric).
-  If NULL, clustering will be performed.}
+regression (numeric). If NULL, clustering will be performed.}
 
 \item{task}{Character. Specifies the task to perform: \code{"clustering"}, 
 \code{"classification"}, or \code{"regression"}. If NULL, it is inferred 
