@@ -151,9 +151,6 @@ res <- bHIVE(X = X,
              k = 4,
              verbose = FALSE)
 
-# Compare predicted vs actual
-table(Predicted = res$assignments, Actual = y)
-
 # Visualize classification results
 iris$Predicted <- res$assignments
 ggplot(iris, aes(x = Sepal.Length, 
@@ -166,6 +163,11 @@ ggplot(iris, aes(x = Sepal.Length,
          y = "Sepal Width") +
     scale_color_viridis(discrete = TRUE) + 
     theme_minimal()
+```
+
+Comparing predicted vs actual
+```{r tidy = FALSE}
+table(Predicted = res$assignments, Actual = y)
 ```
 
 ## Regression
@@ -222,9 +224,6 @@ tuning_results <- swarmbHIVE(X = X,
                              metric = "silhouette",
                              verbose = FALSE)
 
-# Best parameters
-tuning_results$best_params
-
 # Visualize tuning results
 ggplot(tuning_results$results, aes(x = nAntibodies, 
                                    y = metric_value, 
@@ -239,6 +238,12 @@ ggplot(tuning_results$results, aes(x = nAntibodies,
          shape = "Epsilon") +
     scale_color_viridis(discrete = TRUE) + 
     theme_minimal()
+```
+
+
+Best parameters
+```{r tidy = FALSE}
+tuning_results$best_params
 ```
 
 ## Using the `caret` wrapper 
@@ -269,12 +274,13 @@ ggplot(model) +
     theme_minimal()
 ```
 
-## honeycombHIVE: Multilayered bHIVVES
+## honeycombHIVE: Multilayered bHIVES
 
 In `honeycombHIVE`, clustering proceeds hierarchically across multiple layers:
 
-* Each layer generates a refined set of cluster centroids based on the results of the previous layer.  
-* At layer $L$, the centroids $A_L$ are derived from the means of data points assigned to each cluster at layer $L−1$.  
+`honeycombHIVE` iteratively builds and refines a network of "antibodies" (prototypes) to capture complex patterns in data. Initially, the `bHIVE` algorithm creates a set of prototypes, and then each layer can be fine-tuned using gradient-based updates (via the `refineB()` function) with flexible optimizers like SGD, Adam, and RMSProp. 
+
+Fo each layer, a collapse step aggregates the refined prototypes - by computing a centroid, medoid, or another statistic - compressing the data into a new, lower-dimensional representation where each prototype becomes a new observation. This new representation serves as the input for the next layer, similar to neural network architecture. 
 
 ```{r tidy=FALSE}
 # Load the Iris dataset
@@ -317,6 +323,7 @@ for (i in seq_along(res)) {
   print(plot)
 }
 ```
+
 Note: If you use `task = "classification"` or `task = "regression"`, honeycombHIVE will generate multi-layer predictions. You can compare each layer’s predictions against the true labels/outcomes to see if performance improves or if the data become too collapsed.
 
 ## Gradient-based Refinement
@@ -432,38 +439,33 @@ ggplot() +
 ```
 
 **Interpretation**
-* Data points are shown in a light transparency, colored by their cluster assignments (as determined by the original bHIVE algorithm).
+
+* Data points are shown in a light transparency, colored by their cluster assignments (as determined by the original `bHIVE` algorithm).
 * Initial prototypes are shown in dark purple. These are the prototypes (antibodies) before refinement.
 * Refined prototypes are shown in bright yellow. The arrows indicate the direction and magnitude of the update from the original positions to the refined positions.
 
-**Applying Refinement to honeycombHIVE**
+## Applying Refinement to honeycombHIVE
 
-```{r eval=FALSE, tidy=FALSE}
+```{r tidy=FALSE}
 X <- as.matrix(Boston[, -14])
 y <- Boston$medv
 
-res_reg <- honeycombHIVE(X = X,
-                         y = y,
-                         task = "regression",
-                         initMethod = "kmeans++",
-                         epsilon = 0.05,
-                         layers = 3, 
+res_reg <- honeycombHIVE(X = X, 
+                         y = y, 
+                         layers = 3,
+                         task = "regression", 
                          nAntibodies = 30, 
                          beta = 5, 
-                         maxIter = 10,
-                         refine = FALSE,
                          verbose = FALSE)
 
 res_reg_refine <- honeycombHIVE(X = X,
                                 y = y,
                                 task = "regression",
-                                initMethod = "kmeans++",
-                                epsilon = 0.05,
                                 layers = 3, 
                                 nAntibodies = 30, 
                                 beta = 5, 
-                                maxIter = 10,
-                                refine = TRUE,             
+                                refine = TRUE, 
+                                refineOptimizer = "adam",
                                 refineLoss = "mse",        
                                 refineSteps = 3,           
                                 refineLR = 0.01,            
