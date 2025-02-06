@@ -13,8 +13,11 @@ Depends:
     R (>= 4.0.0)
 Imports: 
     cluster,
-    magrittr,
-    stats
+    clusterCrit,
+    Rtsne,
+    stats,
+    umap,
+    viridis
 Suggests:
     BiocStyle,
     caret, 
@@ -24,8 +27,7 @@ Suggests:
     MASS,
     rmarkdown,
     spelling,
-    testthat (>= 3.0.0),
-    viridis
+    testthat (>= 3.0.0)
 VignetteBuilder: knitr
 Config/testthat/edition: 3
 Language: en-US

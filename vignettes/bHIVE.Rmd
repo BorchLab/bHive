@@ -16,7 +16,9 @@ vignette: >
 ---
 
 ```{r, echo=FALSE, results="hide", message=FALSE}
-knitr::opts_chunk$set(error=FALSE, message=FALSE, warning=FALSE)
+knitr::opts_chunk$set(error=FALSE, 
+                      message=FALSE, 
+                      warning=FALSE)
 library(BiocStyle)
 library(bHIVE)
 library(ggplot2)
@@ -369,10 +371,12 @@ colnames(X_pca) <- c("PC1","PC2")
 # Antibodies in PCA space
 A_bhive_pca   <- predict(pca, Ab)
 A_refined_pca <- predict(pca, Ab_refined)
+```
 
-# Build a data frame for ggplot
-plot_data <- data.frame(PC1 = X_pca[,1],
-                        PC2 = X_pca[,2],
+```{r echo=FALSE}
+# Build a data frame for the data points (colored by their bHIVE assignment)
+plot_data <- data.frame(PC1 = X_pca[, 1],
+                        PC2 = X_pca[, 2],
                         Cluster = factor(assignments))
 
 proto_df <- data.frame(PC1_before = A_bhive_pca[,1],
@@ -458,6 +462,96 @@ ggplot(Boston, aes(x = y, y = Predicted_Refined)) +
          y = "Predicted Values") +
     theme_minimal()
 ```
+
+# Visualizing Results with visualizeHIVE
+
+Below are several examples that demonstrate how to use the visualizeHIVE() function for different tasks and plot types.
+
+## Example 1: Scatterplot for Clustering Results
+
+In this example we run `honeycombHIVE()` on the Iris dataset for a clustering task. The scatterplot is generated using a PCA transformation to reduce the feature space to two dimensions. Data points are colored by cluster membership (treated as discrete) and prototypes are overlaid as black points.
+
+```{r}
+data(iris)
+X <- as.matrix(iris[, 1:4])
+
+
+set.seed(42)
+res <- honeycombHIVE(X = X, 
+                     task = "clustering", 
+                     epsilon = 0.05,
+                     layers = 3, 
+                     nAntibodies = 30, 
+                     beta = 5, 
+                     maxIter = 10, 
+                     verbose = FALSE)
+
+visualizeHIVE(result = res,
+              X = iris[, 1:4],
+              plot_type = "scatter",
+              title = "Layer 2: Scatterplot (Clustering)",
+              layer = 2,
+              task = "clustering",
+              transform = TRUE,
+              transformation_method = "PCA")
+
+```
+
+This scatterplot shows the data projected onto the first two principal components. Each data point is colored according to its cluster (discrete grouping), and the prototypes computed by honeycombHIVE are displayed as large black points. Faceting by layer is applied if multiple layers are selected.
+
+## Example 2: Violin Plot for Classification Results
+
+For a classification task, assume that the algorithm stores class predictions. The following example generates a violin plot of the "Sepal.Width" feature from layer 1. The discrete grouping (class labels) is used to color the violins, and prototype values are overlaid as black points.
+
+```{r}
+set.seed(42)
+res_class <- honeycombHIVE(X = X, 
+                           y = iris$Species, 
+                           task = "classification", 
+                           layers = 2, 
+                           nAntibodies = 15, 
+                           beta = 5, 
+                           maxIter = 10, 
+                           verbose = FALSE)
+
+visualizeHIVE(result = res_class,
+              X = iris[, 1:4],
+              plot_type = "violin",
+              feature = "Sepal.Width",
+              title = "Violin Plot: Sepal.Width by Group (Layer 1, Classification)",
+              layer = 1,
+              task = "classification")
+```
+
+The violin plot shows the distribution of **Sepal.Width** for each predicted class. Discrete color scales ensure that class labels are clearly distinguished, and the black markers indicate the prototype (group summary) for each group.
+
+## Example 3: Density Plot for Regression Results
+
+For regression tasks the grouping is set to a constant so that all data points are in one group. This density plot displays the distribution of "Sepal.Width" in layer 1, with prototype values indicated by dashed vertical lines.
+
+```{r}
+set.seed(42)
+res_reg <- honeycombHIVE(
+  X = X, 
+  y = as.numeric(iris$Sepal.Length), 
+  task = "regression", 
+  layers = 2, 
+  nAntibodies = 12, 
+  beta = 5, 
+  maxIter = 10, 
+  verbose = FALSE)
+
+visualizeHIVE(result = res_reg,
+              X = iris[, 1:4],
+              plot_type = "density",
+              feature = "Sepal.Width",
+              title = "Density Plot: Sepal.Width (Layer 1, Regression)",
+              layer = 1,
+              task = "regression")
+
+```
+
+Since this is a regression task, all observations are grouped together ("All"). The density plot shows the overall distribution of Sepal.Width, with the prototype positions marked by dashed lines. This helps visualize the central tendency of the prototypes relative to the overall data distribution.
 
 # Conclusions
 
