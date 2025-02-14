@@ -1,3 +1,4 @@
+# test script for swarmbHIVE.R - testcases are NOT comprehensive!
 set.seed(42)
 
 test_that("swarmbHIVE works for clustering (silhouette)", {

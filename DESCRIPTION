@@ -15,18 +15,20 @@ Imports:
     BiocParallel,
     cluster,
     clusterCrit,
-    stats
+    ggplot2,
+    Rtsne,
+    stats,
+    umap,
+    viridis
 Suggests:
     BiocStyle,
     caret, 
     devtools,
-    ggplot2, 
     knitr,
     MASS,
     rmarkdown,
     spelling,
-    testthat (>= 3.0.0),
-    viridis
+    testthat (>= 3.0.0)
 VignetteBuilder: knitr
 Config/testthat/edition: 3
 Language: en-US

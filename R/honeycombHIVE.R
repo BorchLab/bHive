@@ -89,7 +89,7 @@
 #'     \item \code{task}: The specified task.
 #'   }
 #'
-#' @importFrom stats median
+#' @importFrom stats median setNames
 #' @export
 honeycombHIVE <- function(X,
                           y = NULL,
@@ -124,7 +124,19 @@ honeycombHIVE <- function(X,
   task <- match.arg(task)
   collapseMethod <- match.arg(collapseMethod)
   
-  .validate_bHIVE_input(X, y)  # your existing validation function
+  .validate_bHIVE_input(X, y)  
+  
+  # Validate refineLoss based on task
+  valid_losses <- list(
+    regression = c("mse", "mae", "huber", "kullback_leibler"),
+    classification = c("categorical_crossentropy", "binary_crossentropy", "kullback_leibler"),
+    clustering = c("mse", "mae", "huber")
+  )
+  
+  if (refine && !refineLoss %in% valid_losses[[task]]) {
+    stop(sprintf("Invalid refineLoss '%s' for task '%s'. Supported losses: %s", 
+                 refineLoss, task, paste(valid_losses[[task]], collapse = ", ")))
+  }
   
   # Force X into a data.frame for subsetting operations
   X <- as.data.frame(X)
@@ -196,7 +208,7 @@ honeycombHIVE <- function(X,
           y           = dummy_y,
           assignments = assignments_layer,
           loss        = refineLoss,
-          task        = "classification",  # ensure refineB supports this mode.
+          task        = "classification",  
           steps       = refineSteps,
           lr          = refineLR,
           push_away   = FALSE,
