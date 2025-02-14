@@ -16,16 +16,19 @@ swarmbHIVE(
 )
 }
 \arguments{
-\item{X}{A numeric matrix or data frame of input features (rows = observations, columns = features).}
+\item{X}{A numeric matrix or data frame of input features (rows = 
+observations, columns = features).}
 
-\item{y}{Optional. A target vector: factor for classification, numeric for regression. 
-If \code{NULL}, clustering is performed.}
+\item{y}{Optional. A target vector: factor for classification, numeric for 
+regression. 
+  If \code{NULL}, clustering is performed.}
 
-\item{task}{Character. One of \code{"clustering"}, \code{"classification"}, or \code{"regression"}.}
+\item{task}{Character. One of \code{"clustering"}, \code{"classification"},
+or \code{"regression"}.}
 
-\item{grid}{A data frame specifying the hyperparameter combinations. Should have columns:
-\code{nAntibodies}, \code{beta}, \code{epsilon}. (Optionally more if you want to pass
-other arguments to \code{bHIVE()}.)}
+\item{grid}{A data frame specifying the hyperparameter combinations. 
+Should have columns: \code{nAntibodies}, \code{beta}, \code{epsilon}. 
+(Optionally more if you want to pass other arguments to \code{bHIVE()}.)}
 
 \item{metric}{Character. Name of the evaluation metric. Options:
 \itemize{
@@ -34,11 +37,12 @@ other arguments to \code{bHIVE()}.)}
   \item \strong{Clustering}: "silhouette", "davies_bouldin", "calinski_harabasz"
 }}
 
-\item{maxIter}{Integer. Maximum iterations for each \code{bHIVE} run (default 50).}
+\item{maxIter}{Integer. Maximum iterations for each \code{bHIVE} run 
+(default 50).}
 
-\item{BPPARAM}{Character. A BiocParallel::bpparam() object that can be used for parallelization. 
-The function supports \code{SerialParam}, \code{MulticoreParam}, \code{BatchtoolsParam}, 
-and \code{SerialParam}.}
+\item{BPPARAM}{Character. A BiocParallel::bpparam() object that can be used 
+for parallelization. The function supports \code{SerialParam}, \code{MulticoreParam}, 
+\code{BatchtoolsParam}, and \code{SnowParam}.}
 
 \item{verbose}{Logical. If \code{TRUE}, prints progress messages.}
 }
@@ -58,8 +62,7 @@ combinations. Evaluates each combination using different metrics:
 \details{
 - **Classification**: "accuracy", "balanced_accuracy", "f1", "kappa"
 - **Regression**: "rmse", "mae", "r2"
-- **Clustering**: "silhouette", "davies_bouldin" (*requires the 'clusterCrit' 
-  package*), or "calinski_harabasz" (*requires 'clusterCrit'*).
+- **Clustering**: "silhouette", "davies_bouldin", or "calinski_harabasz" 
 
 **Note**: Some metrics require additional packages or assumptions 
 (e.g., multi-class classification for "f1" is calculated as a macro-average).

@@ -161,6 +161,14 @@ bHIVE <- function(X,
   n <- nrow(X)
   d <- ncol(X)
   
+  if (task == "regression") {
+    y_orig <- y                     # Save original y for future use
+    y_mean <- mean(y, na.rm = TRUE)
+    y_sd <- sd(y, na.rm = TRUE)
+    if (y_sd == 0) y_sd <- 1.        # Prevent division by zero
+    y <- (y - y_mean) / y_sd         # Standardize y
+  }
+  
   # ===================
   # 1. Antibody Initialization
   # ===================
@@ -170,18 +178,18 @@ bHIVE <- function(X,
                               size = nAntibodies, 
                               replace = TRUE), , drop=FALSE] },
     "random" = { xMean <- colMeans(X)
-                 xSd   <- apply(X, 2, sd) + 1e-8
-                 mat   <- matrix(rnorm(nAntibodies * d), nrow = nAntibodies)
-                 mat   <- sweep(mat, 2, xSd, `*`)
-                 sweep(mat, 2, xMean, `+`)},
+    xSd   <- apply(X, 2, sd) + 1e-8
+    mat   <- matrix(rnorm(nAntibodies * d), nrow = nAntibodies)
+    mat   <- sweep(mat, 2, xSd, `*`)
+    sweep(mat, 2, xMean, `+`)},
     "random_uniform" = { xMin <- apply(X, 2, min)
-                         xMax <- apply(X, 2, max)
-                         mat  <- matrix(runif(nAntibodies * d), nrow = nAntibodies)
-                         for (col_i in seq_len(d)) {
-                           range_i <- xMax[col_i] - xMin[col_i]
-                           mat[, col_i] <- xMin[col_i] + range_i * mat[, col_i]
-                         }
-                        mat},
+    xMax <- apply(X, 2, max)
+    mat  <- matrix(runif(nAntibodies * d), nrow = nAntibodies)
+    for (col_i in seq_len(d)) {
+      range_i <- xMax[col_i] - xMin[col_i]
+      mat[, col_i] <- xMin[col_i] + range_i * mat[, col_i]
+    }
+    mat},
     "kmeans++" = {
       .init_kmeanspp(X, nAntibodies)  # Assume you have a kmeans++ init function
     }
@@ -222,7 +230,7 @@ bHIVE <- function(X,
   } else if (task == "regression") {
     sum_y   <- numeric(m)
     sum_aff <- numeric(m)
-    overall_mean <- mean(y, na.rm=TRUE)  # only compute once
+    overall_mean <- mean(y, na.rm=TRUE)  # y is scaled, so overall_mean ~ 0
   }
   
   # For early stopping
@@ -256,7 +264,7 @@ bHIVE <- function(X,
       max_aff <- max(aff_values, na.rm = TRUE)
       if (max_aff == 0 || is.na(max_aff)) next
       
-      #Identify top k antibodies
+      # Identify top k antibodies
       k2 <- min(k, m)
       top_idx <- sort.int(aff_values, decreasing=TRUE, index.return=TRUE)$ix[1:k2]
       
@@ -308,7 +316,7 @@ bHIVE <- function(X,
         }
       })
     } else if (task=="regression") {
-      antibody_values <- ifelse(sum_aff>0, sum_y/sum_aff, overall_mean)
+      antibody_values <- ifelse(sum_aff > 0, sum_y/sum_aff, overall_mean)
     }
     
     # ======================
@@ -319,25 +327,28 @@ bHIVE <- function(X,
       if (!keep[u]) next
       for (v in seq.int(u+1, m)) {
         if (!keep[v]) next
-        #TODO Possible point of improvement approximate with RANN or Annoy
+        # TODO: Possible point of improvement approximate with RANN or Annoy
         dist_uv <- distFn(A[u, ], A[v, ], affinityParams)
         if (dist_uv < epsilon) {
           keep[v] <- FALSE
         }
       }
     }
-    # Subset the antibodies
-    A <- A[keep, , drop=FALSE]
+    
+    # Identify the indices of the antibodies to keep.
+    kept_indices <- which(keep)
+    
+    # Subset the antibody matrix and associated variables accordingly.
+    A <- A[kept_indices, , drop = FALSE]
     m_new <- nrow(A)
     
-    if (task=="classification") {
-      class_counts <- class_counts[keep,,drop=FALSE]
-    } else if (task=="regression") {
-      #antibody_values <- antibody_values[keep]
-      antibody_values <- ifelse(keep, antibody_values, mean(y, na.rm = TRUE))
+    if (task == "classification") {
+      class_counts <- class_counts[kept_indices, , drop = FALSE]
+    } else if (task == "regression") {
+      antibody_values <- antibody_values[kept_indices]
     }
     
-    #If suppressed everything => abort
+    # If suppressed everything => abort
     if (m_new == 0) {
       stop("All antibodies were suppressed. Increase nAntibodies or decrease epsilon.")
     }
@@ -454,10 +465,12 @@ bHIVE <- function(X,
       cluster_assign[i] <- best_j
     }
     
+    predictions <- predictions * y_sd + y_mean
+    
     res <- list(
       antibodies  = A,
       assignments = cluster_assign,  # integer cluster IDs
-      predictions = predictions,     # numeric predicted values
+      predictions = predictions,       # numeric predicted values
       task        = task
     )
   }

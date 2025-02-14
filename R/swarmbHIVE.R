@@ -6,29 +6,32 @@
 #'
 #' - **Classification**: "accuracy", "balanced_accuracy", "f1", "kappa"
 #' - **Regression**: "rmse", "mae", "r2"
-#' - **Clustering**: "silhouette", "davies_bouldin" (*requires the 'clusterCrit' 
-#'   package*), or "calinski_harabasz" (*requires 'clusterCrit'*).
+#' - **Clustering**: "silhouette", "davies_bouldin", or "calinski_harabasz" 
 #'
 #' **Note**: Some metrics require additional packages or assumptions 
 #' (e.g., multi-class classification for "f1" is calculated as a macro-average).
 #'
-#' @param X A numeric matrix or data frame of input features (rows = observations, columns = features).
-#' @param y Optional. A target vector: factor for classification, numeric for regression. 
+#' @param X A numeric matrix or data frame of input features (rows = 
+#' observations, columns = features).
+#' @param y Optional. A target vector: factor for classification, numeric for 
+#' regression. 
 #'   If \code{NULL}, clustering is performed.
-#' @param task Character. One of \code{"clustering"}, \code{"classification"}, or \code{"regression"}.
-#' @param grid A data frame specifying the hyperparameter combinations. Should have columns:
-#'   \code{nAntibodies}, \code{beta}, \code{epsilon}. (Optionally more if you want to pass
-#'   other arguments to \code{bHIVE()}.)
+#' @param task Character. One of \code{"clustering"}, \code{"classification"},
+#'  or \code{"regression"}.
+#' @param grid A data frame specifying the hyperparameter combinations. 
+#' Should have columns: \code{nAntibodies}, \code{beta}, \code{epsilon}. 
+#' (Optionally more if you want to pass other arguments to \code{bHIVE()}.)
 #' @param metric Character. Name of the evaluation metric. Options:
 #'   \itemize{
 #'     \item \strong{Classification}: "accuracy", "balanced_accuracy", "f1", "kappa"
 #'     \item \strong{Regression}: "rmse", "mae", "r2"
 #'     \item \strong{Clustering}: "silhouette", "davies_bouldin", "calinski_harabasz"
 #'   }
-#' @param maxIter Integer. Maximum iterations for each \code{bHIVE} run (default 50).
-#' @param BPPARAM Character. A BiocParallel::bpparam() object that can be used for parallelization. 
-#' The function supports \code{SerialParam}, \code{MulticoreParam}, \code{BatchtoolsParam}, 
-#' and \code{SerialParam}.
+#' @param maxIter Integer. Maximum iterations for each \code{bHIVE} run 
+#' (default 50).
+#' @param BPPARAM Character. A BiocParallel::bpparam() object that can be used 
+#' for parallelization. The function supports \code{SerialParam}, \code{MulticoreParam}, 
+#' \code{BatchtoolsParam}, and \code{SnowParam}.
 #' @param verbose Logical. If \code{TRUE}, prints progress messages.
 #'
 #' @return A list:

@@ -166,6 +166,7 @@ ggplot(iris, aes(x = Sepal.Length,
 ```
 
 Comparing predicted vs actual
+
 ```{r tidy = FALSE}
 table(Predicted = res$assignments, Actual = y)
 ```
@@ -186,11 +187,11 @@ set.seed(42)
 res <- bHIVE(X = X, 
              y = y, 
              task = "regression", 
-             nAntibodies = 50, 
-             beta = 10, 
-             epsilon = 0.05, 
+             nAntibodies = 300, 
+             beta = 4, 
+             epsilon = 0.08, 
              k = 5,
-             initMethod = "kmeans++",
+             initMethod = "random",
              verbose = FALSE)
 
 # Visualize regression results
@@ -242,6 +243,7 @@ ggplot(tuning_results$results, aes(x = nAntibodies,
 
 
 Best parameters
+
 ```{r tidy = FALSE}
 tuning_results$best_params
 ```
@@ -251,19 +253,26 @@ tuning_results$best_params
 The `bHIVE` package provides a `caret` wrapper for seamless integration with the `caret` framework, allowing for easy cross-validation and hyperparameter tuning. Here, we demonstrate regression on the Boston housing dataset.
 
 ```{r message=FALSE, warning=FALSE, tidy=FALSE}
-# Train using caret
+# Splitting Training and Validation Data Sets
+set.seed(42)
+sample.idx <- sample(nrow(X), nrow(X)*0.7)
+x_test <- X[sample.idx,]
+x_val <- X[-sample.idx,]
+y_test <- y[sample.idx]
+y_val <- y[-sample.idx]
+
+
 train_control <- trainControl(method = "cv", number = 2)
 set.seed(42)
-model <- train(x = X,
-               y = y,
+model <- train(x = x_test,
+               y = y_test,
                method = bHIVEmodel,
                trControl = train_control,
                tuneGrid = expand.grid(
-                    nAntibodies = c(10, 20),
-                    beta = c(3, 5),
-                    epsilon = c(0.01, 0.05)),
-               verbose = FALSE
-)
+                 nAntibodies = c(10, 20, 30),
+                 beta = c(3, 5, 10),
+                 epsilon = c(0.01, 0.05, 0.1)),
+               verbose = FALSE)
 
 # Visualize caret results
 ggplot(model) +
@@ -274,7 +283,24 @@ ggplot(model) +
     theme_minimal()
 ```
 
-## honeycombHIVE: Multilayered bHIVES
+### Applying the caret-based model
+
+To use the best performing model from the above, we just using the ```predict()``` function with the seperated validation data set (**X_val**).
+
+```{r tidy = FALSE}
+df <- data.frame(y = y_val,
+                 Predicted = predict(model, newdata = x_val))
+
+ggplot(df, aes(x = y, y = Predicted)) +
+    geom_point() +
+    geom_smooth(method = "lm", color = "blue", se = FALSE) +
+    labs(title = "Regression Results with bHIVE", 
+         x = "Actual Values (medv)", 
+         y = "Predicted Values") +
+    theme_minimal()
+```
+
+## honeycombHIVE: Multilayered bHIVVES
 
 In `honeycombHIVE`, clustering proceeds hierarchically across multiple layers:
 
@@ -426,7 +452,7 @@ ggplot() +
                aes(x = PC1_before, y = PC2_before, 
                    xend = PC1_after, yend = PC2_after),
                arrow = arrow(length = unit(0.2, "cm"), type = "closed"),
-               color = "black", size = 0.5) +
+               color = "black", lwd = 0.5) +
   scale_color_viridis(discrete = TRUE) +
   labs(title = "Prototype Refinement in PCA Space",
        x = "PC1", 
@@ -439,7 +465,6 @@ ggplot() +
 ```
 
 **Interpretation**
-
 * Data points are shown in a light transparency, colored by their cluster assignments (as determined by the original `bHIVE` algorithm).
 * Initial prototypes are shown in dark purple. These are the prototypes (antibodies) before refinement.
 * Refined prototypes are shown in bright yellow. The arrows indicate the direction and magnitude of the update from the original positions to the refined positions.
@@ -447,6 +472,7 @@ ggplot() +
 ## Applying Refinement to honeycombHIVE
 
 ```{r tidy=FALSE}
+data(Boston)
 X <- as.matrix(Boston[, -14])
 y <- Boston$medv
 
@@ -454,16 +480,18 @@ res_reg <- honeycombHIVE(X = X,
                          y = y, 
                          layers = 3,
                          task = "regression", 
-                         nAntibodies = 30, 
+                         nAntibodies = 50, 
                          beta = 5, 
+                         epsilon = 0.01,
                          verbose = FALSE)
 
 res_reg_refine <- honeycombHIVE(X = X,
                                 y = y,
                                 task = "regression",
                                 layers = 3, 
-                                nAntibodies = 30, 
+                                nAntibodies = 50, 
                                 beta = 5, 
+                                epsilon = 0.01,
                                 refine = TRUE, 
                                 refineOptimizer = "adam",
                                 refineLoss = "mse",        
