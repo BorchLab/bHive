@@ -1,75 +1,132 @@
 # test script for visualizeHIVE.R - testcases are NOT comprehensive!
+library(testthat)
+library(ggplot2)
 
-dummy_class_result <- list(
+### SETUP FAKE DATA AND RESULT OBJECTS ###
+# Create a numeric matrix X with 10 rows and 3 columns
+set.seed(123)
+X_mat <- matrix(rnorm(30), nrow = 10, ncol = 3)
+colnames(X_mat) <- c("Feature1", "Feature2", "Feature3")
+
+fake_result_single <- list(
+  antibodies = matrix(rnorm(6), nrow = 2, ncol = 3),
+  assignments = factor(sample(1:2, 10, replace = TRUE)),  # used for boxplot/violin/density
+  membership = factor(sample(1:3, 10, replace = TRUE))    # used for scatterplots in clustering
+)
+
+# Fake result for regression (grouping is forced to "All")
+fake_result_regression <- list(
+  antibodies = matrix(rnorm(6), nrow = 2, ncol = 3),
+  assignments = factor(sample(1:2, 10, replace = TRUE))
+)
+
+# Fake multi-layer result: a list of two layers where each element has an antibodies field.
+fake_multilayer <- list(
   list(
-    antibodies = matrix(c(5, 3, 1, 
-                          6, 4, 2, 
-                          7, 5, 3), nrow = 3, byrow = TRUE),
-    assignments = c("setosa", "versicolor", "virginica", "setosa", "versicolor"),
-    membership = c(1, 2, 3, 1, 2),
-    task = "classification",
-    predictions = c("setosa", "versicolor", "virginica", "setosa", "versicolor")
+    antibodies = matrix(rnorm(6), nrow = 2, ncol = 3),
+    assignments = factor(sample(1:2, 10, replace = TRUE)),
+    membership = factor(sample(1:2, 10, replace = TRUE))
   ),
   list(
-    antibodies = matrix(c(5.5, 3.2, 1.1, 
-                          6.1, 3.6, 2.1, 
-                          7.2, 3.8, 2.5), nrow = 3, byrow = TRUE),
-    assignments = c("setosa", "versicolor", "virginica", "setosa", "versicolor"),
-    membership = c(1, 2, 3, 1, 2),
-    task = "classification",
-    predictions = c("setosa", "versicolor", "virginica", "setosa", "versicolor")
+    antibodies = matrix(rnorm(6), nrow = 2, ncol = 3),
+    assignments = factor(sample(1:2, 10, replace = TRUE)),
+    membership = factor(sample(1:2, 10, replace = TRUE))
   )
 )
 
-dummy_X <- iris[, 1:4]  # use the iris data for testing
 
-### Dummy Regression Result
-set.seed(123)
-dummy_reg_result <- list(
-  list(
-    antibodies = matrix(rnorm(12), nrow = 3, ncol = 4),
-    assignments = rep("All", 50),
-    membership = sample(1:3, 50, replace = TRUE),
-    task = "regression"
-  )
-)
+test_that("Scatter plot returns a ggplot object for clustering", {
+  p <- visualizeHIVE(result = fake_result_single,
+                     X = X_mat,
+                     plot_type = "scatter",
+                     title = "Test Scatter",
+                     layer = 1,
+                     task = "clustering",
+                     transformation_method = "none",
+                     transform = FALSE)
+  expect_s3_class(p, "ggplot")
+  expect_true(grepl("Test Scatter", p$labels$title))
+})
 
-test_that("visualizeHIVE returns a ggplot for classification scatter plot", {
-  p <- visualizeHIVE(
-    result = dummy_class_result,
-    X = dummy_X,
-    plot_type = "scatter",
-    layer = 1,
-    task = "classification",
-    transform = FALSE
-  )
+test_that("Scatter plot returns a ggplot object for regression", {
+  p <- visualizeHIVE(result = fake_result_regression,
+                     X = X_mat,
+                     plot_type = "scatter",
+                     title = "Regression Scatter",
+                     layer = 1,
+                     task = "regression",
+                     transformation_method = "PCA",
+                     transform = TRUE)
+  expect_s3_class(p, "ggplot")
+  expect_true(grepl("Regression Scatter", p$labels$title))
+})
+
+test_that("Boxplot returns a ggplot object for classification", {
+  p <- visualizeHIVE(result = fake_result_single,
+                     X = as.data.frame(X_mat),
+                     plot_type = "boxplot",
+                     feature = "Feature2",
+                     title = "Boxplot Test",
+                     layer = 1,
+                     task = "classification")
+  expect_s3_class(p, "ggplot")
+  expect_true(grepl("Boxplot Test", p$labels$title))
+})
+
+test_that("Boxplot returns a ggplot object for regression", {
+  p <- visualizeHIVE(result = fake_result_regression,
+                     X = as.data.frame(X_mat),
+                     plot_type = "boxplot",
+                     feature = 2,
+                     title = "Boxplot Regression",
+                     layer = 1,
+                     task = "regression")
   expect_s3_class(p, "ggplot")
 })
 
-test_that("visualizeHIVE facets when multiple layers provided", {
-  p <- visualizeHIVE(
-    result = dummy_class_result,
-    X = dummy_X,
-    plot_type = "scatter",
-    layer = c(1, 2),
-    task = "classification",
-    transform = FALSE
-  )
-  # p$facet should be an object of class FacetWrap if facet_wrap was used.
-  expect_true("FacetWrap" %in% class(p$facet))
+test_that("Violin plot returns a ggplot object", {
+  p <- visualizeHIVE(result = fake_result_single,
+                     X = as.data.frame(X_mat),
+                     plot_type = "violin",
+                     feature = "Feature3",
+                     title = "Violin Plot",
+                     layer = 1,
+                     task = "classification")
+  expect_s3_class(p, "ggplot")
+})
+
+test_that("Density plot returns a ggplot object", {
+  p <- visualizeHIVE(result = fake_result_single,
+                     X = as.data.frame(X_mat),
+                     plot_type = "density",
+                     feature = "Feature1",
+                     title = "Density Plot",
+                     layer = 1,
+                     task = "classification")
+  expect_s3_class(p, "ggplot")
+})
+
+test_that("Error is thrown if layer is non-numeric", {
+  expect_error(visualizeHIVE(result = fake_result_single,
+                             X = X_mat,
+                             plot_type = "scatter",
+                             title = "Layer error",
+                             layer = "one",
+                             task = "clustering"),
+               "'layer' must be numeric")
 })
 
 
-test_that("visualizeHIVE errors when X is missing for boxplot/violin/density", {
-  expect_error(
-    visualizeHIVE(
-      result = dummy_class_result,
-      X = NULL,
-      plot_type = "boxplot",
-      feature = "Sepal.Width",
-      layer = 1,
-      task = "classification"
-    ),
-    "'data' must be of a vector type, was 'NULL'"
-  )
+test_that("Multi-layer scatter plot includes facet wrapping", {
+  p <- visualizeHIVE(result = fake_multilayer,
+                     X = X_mat,
+                     plot_type = "scatter",
+                     title = "Multi-layer Scatter",
+                     layer = c(1, 2),
+                     task = "clustering",
+                     transformation_method = "none",
+                     transform = FALSE)
+  expect_s3_class(p, "ggplot")
+  expect_true(inherits(p$facet, "FacetWrap"))
 })
+

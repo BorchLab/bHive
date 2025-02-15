@@ -120,13 +120,16 @@ visualizeHIVE <- function(result,
   ### EDIT: Ensure 'layer' is numeric.
   if (!is.numeric(layer)) stop("'layer' must be numeric (layer indices).")
   
-  # If result is multilayer, select the specified layers; otherwise, wrap result in a list.
-  if (is.list(result) && all(sapply(result, function(x) !is.null(x$antibodies)))) {
+  if (!is.null(result$antibodies)) {
+    # Single-layer result: wrap it in a list for uniform processing.
+    selectedLayers <- list(result)
+    layer_labels <- "Layer 1"
+  } else if (is.list(result) && all(sapply(result, function(x) !is.null(x$antibodies)))) {
+    # Multi-layer result.
     selectedLayers <- result[layer]
     layer_labels <- paste("Layer", layer)
   } else {
-    selectedLayers <- list(result)
-    layer_labels <- "Layer 1"
+    stop("Invalid result object format.")
   }
   
   ### BUILD PROTOTYPE DATA FRAME FOR CLASSIFICATION
@@ -135,13 +138,17 @@ visualizeHIVE <- function(result,
     proto_list <- lapply(seq_along(selectedLayers), function(i) {
       layer_i <- selectedLayers[[i]]
       protos <- as.data.frame(layer_i$antibodies)
+      # If X has column names and the dimensions match, assign them to protos:
+      if (!is.null(X) && ncol(protos) == ncol(X) && !is.null(colnames(X))) {
+        colnames(protos)[1:ncol(X)] <- colnames(X)
+      }
       protos$Layer <- layer_labels[i]
       proto_grp <- sapply(seq_len(nrow(protos)), function(j) {
-          dists <- apply(as.matrix(X), 1, function(x) {
-            sqrt(sum((x - as.numeric(protos[j, seq_len(ncol(X))]))^2))
-          })
-          nearest_index <- which.min(dists)
-          return(layer_i$assignments[nearest_index])
+        dists <- apply(as.matrix(X), 1, function(x) {
+          sqrt(sum((x - as.numeric(protos[j, seq_len(ncol(X))]))^2))
+        })
+        nearest_index <- which.min(dists)
+        return(layer_i$assignments[nearest_index])
       })
       protos$Group <- factor(proto_grp, levels = unique(proto_grp))
       protos
@@ -315,7 +322,7 @@ visualizeHIVE <- function(result,
         scale_fill_viridis(discrete = TRUE) +
         scale_color_viridis(option = "H", discrete = TRUE) + 
         geom_vline(data = df_proto, aes(xintercept = Prototype, color = Layer),
-                   linetype = "dashed", size = 0.5)
+                   linetype = "dashed", lwd = 0.5)
     }
     if (length(unique(df_feature$Layer)) > 1)
       p <- p + facet_wrap(~Layer)

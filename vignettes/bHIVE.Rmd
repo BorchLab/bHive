@@ -285,7 +285,7 @@ ggplot(model) +
 
 ### Applying the caret-based model
 
-To use the best performing model from the above, we just using the ```predict()``` function with the seperated validation data set (**X_val**).
+To use the best performing model from the above, we just using the ```predict()``` function with the separated validation data set (**X_val**).
 
 ```{r tidy = FALSE}
 df <- data.frame(y = y_val,
@@ -300,7 +300,7 @@ ggplot(df, aes(x = y, y = Predicted)) +
     theme_minimal()
 ```
 
-## honeycombHIVE: Multilayered bHIVVES
+## honeycombHIVE: Multilayered bHIVES
 
 In `honeycombHIVE`, clustering proceeds hierarchically across multiple layers:
 

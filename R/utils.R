@@ -1,3 +1,5 @@
+utils::globalVariables(c("PC1", "PC2", "Group", "Feature", "Prototype", "Layer"))
+
 .validate_bHIVE_input <- function(X, 
                                   y = NULL) {
   if (!is.matrix(X) && !is.data.frame(X)) {
