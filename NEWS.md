@@ -1,3 +1,9 @@
+# bHIVE 0.99.4
+
+## Bug Fixes
+* Fix issue with Windows linker failure (Build R-release/devel/oldrel for Windows)
+* Fixed R-devel/Linux arm64 test failure (Error in [.default(tb, cl, cl): subscript out of bounds)
+
 # bHIVE 0.99.3
 
 ## Module Integration
