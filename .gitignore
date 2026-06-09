@@ -1,1 +1,6 @@
 .DS_Store
+
+# Compiled object and shared library files
+src/*.o
+src/*.so
+src/*.dll

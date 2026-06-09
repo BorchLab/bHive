@@ -143,20 +143,29 @@ swarmbHIVE <- function(X,
     if (task == "classification") {
       predicted_labels <- model$assignments
       actual_labels <- y
-      
+
+      # Build the confusion matrix over the union of actual and predicted
+      # labels so it is always square. Without shared levels, a class that the
+      # model never predicts is absent from the columns, and indexing tb[cl, cl]
+      # or sum(tb[, cl]) for that class throws "subscript out of bounds".
+      lvls        <- sort(unique(c(as.character(actual_labels),
+                                   as.character(predicted_labels))))
+      actual_f    <- factor(as.character(actual_labels),    levels=lvls)
+      predicted_f <- factor(as.character(predicted_labels), levels=lvls)
+
       if (metric == "accuracy") {
         return(mean(predicted_labels == actual_labels))
       } else if (metric == "balanced_accuracy") {
         # Balanced accuracy across classes
         # For multi-class, we can do macro-average recall
-        tbl <- table(actual_labels, predicted_labels)
+        tbl <- table(actual_f, predicted_f)
         # row = actual, col = predicted
         recalls <- diag(prop.table(tbl, margin=1))
         return(mean(recalls, na.rm=TRUE))
       } else if (metric == "f1") {
         # For multi-class, compute macro-F1
         # F1_class_i = 2 * precision_i * recall_i / (precision_i + recall_i)
-        tb <- table(actual_labels, predicted_labels)
+        tb <- table(actual_f, predicted_f)
         # row = actual, col = pred
         f1s <- c()
         for (cl in rownames(tb)) {
@@ -172,7 +181,7 @@ swarmbHIVE <- function(X,
         return(mean(f1s, na.rm=TRUE))
       } else if (metric == "kappa") {
         # Cohen's Kappa
-        tb <- table(actual_labels, predicted_labels)
+        tb <- table(actual_f, predicted_f)
         n  <- sum(tb)
         p0 <- sum(diag(tb)) / n
         # Expected agreement under random chance
