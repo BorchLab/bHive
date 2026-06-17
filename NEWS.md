@@ -1,3 +1,40 @@
+# bHIVE 0.99.5
+
+## Performance
+* `clonal_selection_iteration_cpp` no longer recomputes the full n-length
+  affinity column on every accepted mutation. That recompute was nested inside
+  the per-point loop, so with acceptances scaling in the number of points the
+  routine ran in O(n^2) in the cell count, the dominant cost at CyTOF and
+  scRNA scale. Each point now computes its own 1 x m affinity row against the
+  current antibody set. This is the same O(n*m*d) work per iteration but
+  linear in n, and it is numerically identical because a point still sees
+  every mutation made by earlier points in the pass. Clustering and
+  classification fits drop from roughly 101s to 1s at n=2000, and per-fit cost
+  now scales linearly (a 16,000-cell fit runs in about 8s instead of an
+  extrapolated 1.8 hours).
+
+## New Behavior
+* Affinity/distance metric guard in `AINet$new()`. Clonal selection matures
+  antibodies to maximize `affinityFunc`, but cluster assignment uses
+  `distFunc`. When the two used different geometries the model optimized one
+  space and read out in another. A cosine versus non-cosine mismatch now warns
+  and aligns the distance to the affinity's natural metric (cosine to cosine,
+  otherwise the Euclidean family). Without it, cosine affinity scores angle
+  only and never constrains antibody magnitude, so antibodies drifted far off
+  the data manifold and every point collapsed onto a single antibody (one
+  cluster, ARI 0).
+* Clustering consolidation, controlled by `consolidate` (default `TRUE`) and
+  `consolidationSteps` (default 10). After affinity maturation, `AINet$fit()`
+  seeds an assignment by affinity, which stays robust to off-manifold
+  antibodies, then runs Euclidean Lloyd refinement so prototypes become true
+  data-space centroids rather than affinity-maximizing directions that may sit
+  far off the data. The repertoire keeps the matured antibodies and their
+  metadata, so memory archiving and isotype state are unchanged. Only
+  `result$antibodies` reports the consolidated prototypes. Set
+  `consolidate = FALSE` to recover the raw affinity-assignment behavior. The
+  metric guard and default-on consolidation change clustering output, so
+  cached benchmarks should be regenerated.
+
 # bHIVE 0.99.4
 
 ## Bug Fixes

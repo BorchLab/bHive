@@ -51,6 +51,11 @@ AINet <- R6::R6Class(
     #' @param microenvironment A Microenvironment instance or NULL.
     #' @param memory A MemoryPool instance or NULL.
     #' @param classSwitcher A ClassSwitcher instance or NULL.
+    #' @param consolidate Logical. For clustering, run Lloyd-style
+    #'   consolidation (an M-step) after affinity maturation so antibodies are
+    #'   pulled onto the data manifold and become true data-space prototypes.
+    #'   Has no effect on classification. Default TRUE.
+    #' @param consolidationSteps Integer. Maximum consolidation iterations.
     #' @param verbose Logical. Print progress.
     initialize = function(nAntibodies = 20,
                           beta = 5,
@@ -67,6 +72,8 @@ AINet <- R6::R6Class(
                           stopTolerance = 0.0,
                           noImprovementLimit = Inf,
                           initMethod = "sample",
+                          consolidate = TRUE,
+                          consolidationSteps = 10L,
                           shm = NULL,
                           init = NULL,
                           activation = NULL,
@@ -88,17 +95,42 @@ AINet <- R6::R6Class(
         "mutationMin must be non-negative" = is.numeric(mutationMin) && mutationMin >= 0
       )
 
+      affinityFunc <- match.arg(affinityFunc, c("gaussian", "laplace",
+                                                "polynomial", "cosine", "hamming"))
+      distFunc     <- match.arg(distFunc, c("euclidean", "manhattan",
+                                            "minkowski", "cosine",
+                                            "mahalanobis", "hamming"))
+
+      # --- Affinity/distance metric guard ---
+      # Clonal selection matures antibodies to maximize `affinityFunc`, but
+      # cluster assignment uses `distFunc`. If the two disagree on geometry the
+      # model optimizes one space and is read out in another. The worst case is
+      # cosine affinity (scores angle only, leaves antibody magnitude a free
+      # random walk) paired with a Euclidean-family distance: antibodies drift
+      # far off the data manifold and every point collapses onto one of them.
+      # Align the distance to the affinity's natural metric and warn rather than
+      # silently returning a degenerate clustering.
+      natural_dist <- c(gaussian = "euclidean", laplace = "manhattan",
+                        polynomial = "euclidean", cosine = "cosine",
+                        hamming = "hamming")[[affinityFunc]]
+      cosine_mismatch <- (affinityFunc == "cosine") != (distFunc == "cosine")
+      if (cosine_mismatch) {
+        warning(sprintf(
+          "affinityFunc='%s' and distFunc='%s' use inconsistent geometries; %s. Set distFunc='%s' to silence this.",
+          affinityFunc, distFunc,
+          sprintf("overriding distFunc to '%s'", natural_dist),
+          natural_dist), call. = FALSE)
+        distFunc <- natural_dist
+      }
+
       config <- list(
         nAntibodies       = as.integer(nAntibodies),
         beta              = beta,
         epsilon           = epsilon,
         maxIter           = maxIter,
         k                 = k,
-        affinityFunc      = match.arg(affinityFunc, c("gaussian", "laplace",
-                                                       "polynomial", "cosine", "hamming")),
-        distFunc          = match.arg(distFunc, c("euclidean", "manhattan",
-                                                   "minkowski", "cosine",
-                                                   "mahalanobis", "hamming")),
+        affinityFunc      = affinityFunc,
+        distFunc          = distFunc,
         affinityParams    = affinityParams,
         mutationDecay     = mutationDecay,
         mutationMin       = mutationMin,
@@ -107,6 +139,8 @@ AINet <- R6::R6Class(
         noImprovementLimit = noImprovementLimit,
         initMethod        = match.arg(initMethod, c("sample", "random",
                                                      "random_uniform", "kmeans++")),
+        consolidate       = isTRUE(consolidate),
+        consolidationSteps = as.integer(consolidationSteps),
         verbose           = verbose
       )
 
@@ -530,9 +564,25 @@ AINet <- R6::R6Class(
       # 4b. Final assignment [C++]
       # ================================
       if (task == "clustering") {
-        fa <- final_assignment_cpp(X, A_final, cfg$affinityFunc, cfg$distFunc,
-                                   0L, iter_alpha, c_p, p_p, Sigma_inv)
-        assignments <- as.numeric(factor(fa$assignments))
+        if (cfg$consolidate && cfg$consolidationSteps > 0L &&
+            nrow(A_final) >= 2L) {
+          # Consolidation (M-step): pull antibodies onto the data manifold so
+          # they are genuine data-space prototypes, not affinity-maximizing
+          # directions that may sit far off the data (see metric guard).
+          cons <- private$.consolidate_clusters(X, A_final, cfg,
+                                                 iter_alpha, c_p, p_p, Sigma_inv)
+          A_final     <- cons$antibodies
+          assignments <- cons$assignments
+          # Note: self$repertoire is left as the matured antibodies (with their
+          # isotype/age/lineage metadata and memory state). Consolidation merges
+          # clusters, so the centroids have no 1:1 identity with repertoire rows;
+          # they are the reported prototypes (result$antibodies), while the
+          # repertoire stays the biological population that memory archives.
+        } else {
+          fa <- final_assignment_cpp(X, A_final, cfg$affinityFunc, cfg$distFunc,
+                                     0L, iter_alpha, c_p, p_p, Sigma_inv)
+          assignments <- as.numeric(factor(fa$assignments))
+        }
         self$result <- list(
           antibodies  = A_final,
           assignments = assignments,
@@ -573,6 +623,54 @@ AINet <- R6::R6Class(
   ),
 
   private = list(
+
+    # Lloyd-style consolidation of matured antibodies into data-space
+    # prototypes. Affinity maturation (clonal selection + SHM) finds where the
+    # prototypes should point, but under magnitude-blind affinities (cosine) it
+    # leaves them off the data manifold, and even Euclidean affinities do not
+    # guarantee a prototype equals the centroid of the points it wins. This
+    # runs a few k-means-style refinement steps to fix that.
+    #
+    # The seed assignment is by AFFINITY (argmax), not distance: a Euclidean
+    # seed over off-manifold antibodies can collapse every point onto a single
+    # far-flung antibody, whereas the affinity seed preserves the partition the
+    # network actually learned. After the first M-step the prototypes are
+    # on-manifold, so subsequent E-steps use the (guard-consistent) distFunc.
+    .consolidate_clusters = function(X, A, cfg, alpha, c_p, p_p, Sigma_inv) {
+      d <- ncol(X)
+      # Seed by AFFINITY (argmax) using the trained affinity: robust to
+      # off-manifold antibodies, and it preserves the partition the network
+      # learned (an affinity-blind Euclidean seed over far-flung antibodies can
+      # collapse every point onto one of them).
+      seed <- final_assignment_cpp(X, A, cfg$affinityFunc, cfg$distFunc, 1L,
+                                   alpha, c_p, p_p, Sigma_inv)$best_antibody_idx
+      assign <- as.integer(seed)
+      # The refinement itself is Euclidean Lloyd: the arithmetic mean is the
+      # centroid that minimizes within-cluster L2, so reassignment must also be
+      # Euclidean for the steps to be consistent and monotone. This is
+      # independent of the training affinity/distance -- the affinity drove the
+      # search; consolidation commits the prototypes to the data manifold.
+      cent <- A
+      prev <- NULL
+      for (s in seq_len(cfg$consolidationSteps)) {
+        ks <- sort(unique(assign))
+        # M-step: each prototype is the mean of the points assigned to it.
+        cent <- t(vapply(ks, function(g)
+          colMeans(X[assign == g, , drop = FALSE]), numeric(d)))
+        # E-step: reassign points to the nearest consolidated prototype (L2).
+        new_assign <- as.integer(final_assignment_cpp(
+          X, cent, cfg$affinityFunc, "euclidean", 0L,
+          alpha, c_p, p_p, Sigma_inv)$assignments)
+        if (!is.null(prev) && identical(new_assign, prev)) {
+          assign <- new_assign
+          break
+        }
+        prev   <- new_assign
+        assign <- new_assign
+      }
+      list(antibodies  = cent,
+           assignments = as.numeric(factor(assign)))
+    },
 
     .initialize_antibodies = function(X, nAntibodies, method, init_lib = NULL) {
       # When a VDJLibrary (or any object exposing $generate(n, X)) is supplied
