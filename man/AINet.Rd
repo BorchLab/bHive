@@ -67,6 +67,8 @@ Create a new AINet algorithm instance.
   stopTolerance = 0,
   noImprovementLimit = Inf,
   initMethod = "sample",
+  consolidate = TRUE,
+  consolidationSteps = 10L,
   shm = NULL,
   init = NULL,
   activation = NULL,
@@ -109,6 +111,13 @@ Create a new AINet algorithm instance.
 \item{\code{noImprovementLimit}}{Integer. Early stopping patience.}
 
 \item{\code{initMethod}}{Character. Initialization method.}
+
+\item{\code{consolidate}}{Logical. For clustering, run Lloyd-style
+consolidation (an M-step) after affinity maturation so antibodies are
+pulled onto the data manifold and become true data-space prototypes.
+Has no effect on classification. Default TRUE.}
+
+\item{\code{consolidationSteps}}{Integer. Maximum consolidation iterations.}
 
 \item{\code{shm}}{An SHMEngine instance or NULL for default uniform mutation.}
 
