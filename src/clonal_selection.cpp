@@ -69,12 +69,18 @@ Rcpp::List clonal_selection_iteration_cpp(
     class_counts = arma::zeros<arma::mat>(m, nClasses);
   }
 
-  // Compute full affinity matrix (n x m) -- the big BLAS win
-  arma::mat aff_matrix = affinity_matrix_cpp(X, A, aff_type, alpha, c_param, p_param);
-
-  // Process each data point
+  // Process each data point. We recompute each point's 1 x m affinity row
+  // against the current (mutating) antibody set on the fly, instead of
+  // precomputing the full n x m matrix once and patching a column on every
+  // accepted mutation. The old patch-on-mutation scheme nested an O(n) column
+  // recompute inside this per-point loop, so with acceptances scaling in n the
+  // routine was O(n^2) in the number of cells -- the dominant cost at
+  // CyTOF/scRNA scale. The per-row recompute is the same O(n*m*d) total work
+  // and yields identical values (a point always sees every mutation made by
+  // earlier points in the pass), but keeps the routine linear in n.
   for (arma::uword i = 0; i < n; ++i) {
-    const arma::rowvec aff_values = aff_matrix.row(i);
+    const arma::rowvec aff_values =
+        affinity_matrix_cpp(X.rows(i, i), A, aff_type, alpha, c_param, p_param).row(0);
 
     const double max_aff = aff_values.max();
     if (max_aff <= 0.0 || !std::isfinite(max_aff)) continue;
@@ -122,12 +128,11 @@ Rcpp::List clonal_selection_iteration_cpp(
         );
 
         if (std::isfinite(f_mutated) && f_mutated > f_j) {
+          // Accept the improved antibody in place. No affinity bookkeeping is
+          // needed here: the next point recomputes its own affinity row against
+          // this updated A (see the per-point recompute above), so the mutation
+          // is seen immediately and exactly, with no O(n) column patch.
           A.row(jj) = mutated;
-          // Update the affinity column for this antibody going forward
-          arma::mat mutated_mat(1, d);
-          mutated_mat.row(0) = mutated;
-          aff_matrix.col(jj) = affinity_matrix_cpp(X, mutated_mat, aff_type,
-                                                    alpha, c_param, p_param).col(0);
         }
       }
     }
