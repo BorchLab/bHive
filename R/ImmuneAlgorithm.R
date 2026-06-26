@@ -61,8 +61,17 @@ ImmuneAlgorithm <- R6::R6Class(
       newdata <- as.matrix(newdata)
 
       task <- self$result$task
-      A    <- self$repertoire$as_matrix()
+      # Prefer the reported prototypes (consolidated / forced-K centroids for
+      # clustering; pruned antibodies for classification) so test-time labels
+      # match the training partition. Fall back to the raw repertoire.
+      A    <- self$result$antibodies %||% self$repertoire$as_matrix()
       cfg  <- self$config
+
+      # Apply the scaling learned at fit() so new data lives in the same space
+      # as the trained antibodies. No-op when scale = "none".
+      if (!is.null(cfg$scaling)) {
+        newdata <- .bhive_apply_scaling(newdata, cfg$scaling)
+      }
 
       alpha <- cfg$affinityParams$alpha %||% 1
       c_p   <- cfg$affinityParams$c %||% 1

@@ -56,6 +56,39 @@ AINet <- R6::R6Class(
     #'   pulled onto the data manifold and become true data-space prototypes.
     #'   Has no effect on classification. Default TRUE.
     #' @param consolidationSteps Integer. Maximum consolidation iterations.
+    #' @param scale Character. Per-feature input scaling applied at \code{fit()}
+    #'   and re-applied to new data at \code{predict()}. One of \code{"none"}
+    #'   (default, no transform), \code{"zscore"} (center/SD), \code{"robust"}
+    #'   (median / IQR, outlier-tolerant), or \code{"arcsinh"} (inverse
+    #'   hyperbolic sine with cofactor \code{scaleCofactor}, the standard
+    #'   mass-cytometry transform). Because \code{epsilon}, mutation scale, and
+    #'   all distances live in feature units, scaling makes the same defaults
+    #'   behave consistently across datasets of different magnitude.
+    #' @param scaleCofactor Numeric. Cofactor for \code{scale = "arcsinh"}
+    #'   (\code{asinh(x / cofactor)}). Default 5 (CyTOF convention; use ~150 for
+    #'   fluorescence flow).
+    #' @param targetK Integer or NULL. If set, force the clustering solution to
+    #'   exactly \code{targetK} clusters. Affinity maturation still discovers
+    #'   where prototypes belong, but the final consolidation seeds a K-means
+    #'   (Lloyd) refinement at exactly \code{targetK} centroids: surviving
+    #'   antibodies are agglomerated (if more than K) or split with k-means++ (if
+    #'   fewer than K) before refinement. This decouples the reported cluster
+    #'   count from the emergent suppression dynamics. NULL (default) keeps the
+    #'   emergent, self-selected K. Ignored for classification.
+    #' @param epsilonQuantile Numeric in (0, 1) or NULL. If set, the suppression
+    #'   threshold is recomputed each iteration as this quantile of the pairwise
+    #'   distances among the current antibodies, making suppression scale-free
+    #'   and adaptive instead of using the fixed \code{epsilon}. NULL (default)
+    #'   uses the fixed \code{epsilon}.
+    #' @param coverageBoost Logical. Clustering only. After maturation, find
+    #'   data points that no surviving antibody covers well (max affinity in the
+    #'   bottom \code{coverageQuantile} tail) and seed fresh antibodies there
+    #'   with k-means++. Counters the clonal-selection bias toward dense regions,
+    #'   which otherwise leaves rare populations unrepresented. Pairs naturally
+    #'   with \code{targetK}: the extra seeds give the forced-K refinement
+    #'   candidate prototypes for sparse populations. Default FALSE.
+    #' @param coverageQuantile Numeric in (0, 1). Affinity-coverage tail that
+    #'   defines "poorly covered" points for \code{coverageBoost}. Default 0.05.
     #' @param verbose Logical. Print progress.
     initialize = function(nAntibodies = 20,
                           beta = 5,
@@ -74,6 +107,12 @@ AINet <- R6::R6Class(
                           initMethod = "sample",
                           consolidate = TRUE,
                           consolidationSteps = 10L,
+                          scale = c("none", "zscore", "robust", "arcsinh"),
+                          scaleCofactor = 5,
+                          targetK = NULL,
+                          epsilonQuantile = NULL,
+                          coverageBoost = FALSE,
+                          coverageQuantile = 0.05,
                           shm = NULL,
                           init = NULL,
                           activation = NULL,
@@ -100,6 +139,18 @@ AINet <- R6::R6Class(
       distFunc     <- match.arg(distFunc, c("euclidean", "manhattan",
                                             "minkowski", "cosine",
                                             "mahalanobis", "hamming"))
+      scale        <- match.arg(scale)
+
+      if (!is.null(targetK)) {
+        stopifnot("targetK must be a positive integer" =
+                    is.numeric(targetK) && length(targetK) == 1L && targetK >= 1)
+        targetK <- as.integer(targetK)
+      }
+      if (!is.null(epsilonQuantile)) {
+        stopifnot("epsilonQuantile must be in (0, 1)" =
+                    is.numeric(epsilonQuantile) && length(epsilonQuantile) == 1L &&
+                    epsilonQuantile > 0 && epsilonQuantile < 1)
+      }
 
       # --- Affinity/distance metric guard ---
       # Clonal selection matures antibodies to maximize `affinityFunc`, but
@@ -141,6 +192,13 @@ AINet <- R6::R6Class(
                                                      "random_uniform", "kmeans++")),
         consolidate       = isTRUE(consolidate),
         consolidationSteps = as.integer(consolidationSteps),
+        scale             = scale,
+        scaleCofactor     = scaleCofactor,
+        targetK           = targetK,
+        epsilonQuantile   = epsilonQuantile,
+        coverageBoost     = isTRUE(coverageBoost),
+        coverageQuantile  = coverageQuantile,
+        scaling           = NULL,  # populated at fit() with learned stats
         verbose           = verbose
       )
 
@@ -178,6 +236,19 @@ AINet <- R6::R6Class(
       task <- match.arg(task, c("clustering", "classification"))
 
       X <- as.matrix(X)
+
+      # ================================
+      # 0. Input scaling (C)
+      # ================================
+      # Learn the transform on this training matrix and stash the stats so
+      # predict() applies the identical map to new data. epsilon, mutation
+      # scale and every distance are in feature units, so a fixed default
+      # only behaves sensibly once features share a comparable scale.
+      scaling <- private$.learn_scaling(X, self$config$scale,
+                                        self$config$scaleCofactor)
+      X <- private$.apply_scaling(X, scaling)
+      self$config$scaling <- scaling
+
       n <- nrow(X)
       d <- ncol(X)
       cfg <- self$config
@@ -223,7 +294,18 @@ AINet <- R6::R6Class(
 
       # Affinity/distance params (base values; iter_alpha may be modulated
       # by ClassSwitcher below).
+      # alpha = "auto" sets the RBF/Laplace bandwidth by the median heuristic:
+      # alpha = 1 / median(||x_i - x_j||^2) over a subsample of the (scaled)
+      # data, so the kernel resolves structure at the data's own length scale
+      # instead of the fixed alpha = 1 that is arbitrary once features are
+      # scaled. Only meaningful for distance-based kernels (gaussian/laplace).
       base_alpha <- cfg$affinityParams$alpha %||% 1
+      if (is.character(base_alpha) && identical(base_alpha, "auto")) {
+        base_alpha <- private$.auto_bandwidth(X, cfg$affinityFunc)
+        if (cfg$verbose) {
+          cat(sprintf("Auto bandwidth: alpha = %.5g\n", base_alpha))
+        }
+      }
       c_p   <- cfg$affinityParams$c %||% 1
       p_p   <- cfg$affinityParams$p %||% 2
       iter_alpha <- base_alpha
@@ -478,8 +560,18 @@ AINet <- R6::R6Class(
 
         # (c) Network suppression [C++]
         # Removes near-duplicate antibodies within an epsilon-ball in distFunc.
+        # With epsilonQuantile set, the threshold tracks the current antibody
+        # spread (a low quantile of their pairwise distances) so suppression is
+        # scale-free and adapts as the repertoire contracts, rather than using a
+        # fixed feature-unit epsilon that means different things per dataset.
+        eps_iter <- cfg$epsilon
+        if (!is.null(cfg$epsilonQuantile)) {
+          eps_iter <- private$.adaptive_epsilon(
+            self$repertoire$cells, cfg$distFunc, cfg$epsilonQuantile,
+            p_p, Sigma_inv, fallback = cfg$epsilon)
+        }
         keep <- network_suppression_cpp(
-          self$repertoire$cells, cfg$distFunc, cfg$epsilon,
+          self$repertoire$cells, cfg$distFunc, eps_iter,
           p_p, Sigma_inv
         )
         kept_idx <- which(keep)
@@ -561,10 +653,47 @@ AINet <- R6::R6Class(
       }
 
       # ================================
+      # 4a'. Coverage boost (D)
+      # ================================
+      # Clonal expansion follows density, so rare populations can end the run
+      # with no nearby prototype. Find the worst-covered points (lowest max
+      # affinity to any surviving antibody) and drop k-means++ seeds among them
+      # so the final assignment / forced-K refinement has candidate prototypes
+      # for those regions. Clustering only (new seeds carry no class label).
+      if (task == "clustering" && isTRUE(cfg$coverageBoost) && nrow(A_final) >= 1L) {
+        cov_aff <- compute_affinity_matrix(X, A_final, cfg$affinityFunc,
+                                           iter_alpha, c_p, p_p)
+        coverage <- apply(cov_aff, 1, max)
+        thr <- stats::quantile(coverage, cfg$coverageQuantile, names = FALSE,
+                               na.rm = TRUE)
+        under <- which(coverage <= thr)
+        if (length(under) >= 2L) {
+          n_new <- min(length(under), max(2L, round(0.5 * cfg$nAntibodies)))
+          new_seeds <- init_kmeanspp_cpp(X[under, , drop = FALSE], n_new)
+          A_final <- rbind(A_final, new_seeds)
+          self$repertoire$cells <- A_final
+          if (cfg$verbose) {
+            cat(sprintf("Coverage boost: +%d antibodies for %d under-covered points\n",
+                        n_new, length(under)))
+          }
+        }
+      }
+
+      # ================================
       # 4b. Final assignment [C++]
       # ================================
       if (task == "clustering") {
-        if (cfg$consolidate && cfg$consolidationSteps > 0L &&
+        if (!is.null(cfg$targetK)) {
+          # Target-K mode (A): the matured antibodies supply seeds, but the
+          # reported partition is forced to exactly targetK via a seeded Lloyd
+          # refinement. Decouples the cluster count from the emergent
+          # suppression dynamics, which otherwise under-/over-cluster depending
+          # on scale.
+          fk <- private$.force_k(X, A_final, cfg$targetK, cfg,
+                                 iter_alpha, c_p, p_p, Sigma_inv)
+          A_final     <- fk$antibodies
+          assignments <- fk$assignments
+        } else if (cfg$consolidate && cfg$consolidationSteps > 0L &&
             nrow(A_final) >= 2L) {
           # Consolidation (M-step): pull antibodies onto the data manifold so
           # they are genuine data-space prototypes, not affinity-maximizing
@@ -586,6 +715,10 @@ AINet <- R6::R6Class(
         self$result <- list(
           antibodies  = A_final,
           assignments = assignments,
+          # Prototypes back-transformed to the original feature space (for
+          # interpretation); identical to `antibodies` when scale = "none".
+          antibodies_unscaled =
+            private$.invert_scaling(A_final, cfg$scaling),
           task        = task
         )
       } else {
@@ -596,6 +729,8 @@ AINet <- R6::R6Class(
           antibodies       = A_final,
           assignments      = assignments,
           antibody_classes = antibody_classes,
+          antibodies_unscaled =
+            private$.invert_scaling(A_final, cfg$scaling),
           task             = task
         )
       }
@@ -623,6 +758,101 @@ AINet <- R6::R6Class(
   ),
 
   private = list(
+
+    # --- Input scaling (C) --------------------------------------------------
+    # Thin method wrappers around the file-level scaling helpers so the fit()
+    # body reads cleanly; predict() (in the base class) calls the helpers
+    # directly since it has no access to these private methods.
+    .learn_scaling = function(X, method, cofactor) {
+      .bhive_learn_scaling(X, method, cofactor)
+    },
+    .apply_scaling = function(X, scaling) {
+      .bhive_apply_scaling(X, scaling)
+    },
+    .invert_scaling = function(A, scaling) {
+      .bhive_invert_scaling(A, scaling)
+    },
+
+    # --- Median-heuristic RBF bandwidth (C) ---------------------------------
+    # alpha = 1 / median(||x_i - x_j||^2). Distance-kernel only; identity for
+    # cosine/polynomial/hamming where a Euclidean length scale is meaningless.
+    .auto_bandwidth = function(X, affinityFunc) {
+      if (!affinityFunc %in% c("gaussian", "laplace")) return(1)
+      n <- nrow(X)
+      idx <- if (n > 1000L) sample.int(n, 1000L) else seq_len(n)
+      Xs <- X[idx, , drop = FALSE]
+      d2 <- as.vector(stats::dist(Xs))^2
+      d2 <- d2[d2 > 0]
+      if (length(d2) == 0) return(1)
+      med <- stats::median(d2)
+      if (!is.finite(med) || med <= 0) return(1)
+      1 / med
+    },
+
+    # --- Adaptive suppression threshold (C) ---------------------------------
+    # Return a low quantile of the pairwise antibody distances so the epsilon
+    # ball tracks the repertoire's own spread. Falls back to the fixed epsilon
+    # when there are too few antibodies to form a distribution.
+    .adaptive_epsilon = function(A, distFunc, q, p, Sigma_inv, fallback) {
+      m <- nrow(A)
+      if (is.null(m) || m < 3L) return(fallback)
+      D <- compute_distance_matrix(A, A, distFunc, p, Sigma_inv)
+      du <- D[upper.tri(D)]
+      du <- du[is.finite(du) & du > 0]
+      if (length(du) == 0) return(fallback)
+      as.numeric(stats::quantile(du, probs = q, names = FALSE))
+    },
+
+    # --- Force exactly K clusters (A) ---------------------------------------
+    # Use the matured antibodies as informed seeds, coerce to exactly K
+    # centroids, then run Euclidean Lloyd to convergence. If the network kept
+    # more than K prototypes, agglomerate the closest pairs (Ward on the
+    # antibodies) down to K; if fewer, add k-means++ seeds drawn from the data
+    # so under-clustering can be corrected. Euclidean refinement is used because
+    # the arithmetic mean is the L2-optimal centroid (consistent, monotone),
+    # independent of the training affinity which already drove the search.
+    .force_k = function(X, A, K, cfg, alpha, c_p, p_p, Sigma_inv) {
+      d <- ncol(X)
+      n <- nrow(X)
+      K <- min(K, n)  # cannot ask for more clusters than points
+      m <- nrow(A)
+
+      if (m > K) {
+        # Agglomerate antibodies to K groups, seed = group means.
+        hc  <- stats::hclust(stats::dist(A), method = "ward.D2")
+        grp <- stats::cutree(hc, k = K)
+        cent <- t(vapply(sort(unique(grp)), function(g)
+          colMeans(A[grp == g, , drop = FALSE]), numeric(d)))
+      } else if (m < K) {
+        # Augment with k-means++ seeds from the data to reach K.
+        extra <- init_kmeanspp_cpp(X, K)
+        cent  <- rbind(A, extra)[seq_len(K), , drop = FALSE]
+      } else {
+        cent <- A
+      }
+
+      # Seed assignment by affinity argmax to the seed prototypes, then Lloyd.
+      assign <- as.integer(final_assignment_cpp(
+        X, cent, cfg$affinityFunc, cfg$distFunc, 1L,
+        alpha, c_p, p_p, Sigma_inv)$best_antibody_idx)
+      steps <- max(cfg$consolidationSteps, 10L)
+      prev  <- NULL
+      for (s in seq_len(steps)) {
+        ks <- sort(unique(assign))
+        cent <- t(vapply(ks, function(g)
+          colMeans(X[assign == g, , drop = FALSE]), numeric(d)))
+        new_assign <- as.integer(final_assignment_cpp(
+          X, cent, cfg$affinityFunc, "euclidean", 0L,
+          alpha, c_p, p_p, Sigma_inv)$assignments)
+        if (!is.null(prev) && identical(new_assign, prev)) {
+          assign <- new_assign; break
+        }
+        prev   <- new_assign
+        assign <- new_assign
+      }
+      list(antibodies  = cent,
+           assignments = as.numeric(factor(assign)))
+    },
 
     # Lloyd-style consolidation of matured antibodies into data-space
     # prototypes. Affinity maturation (clonal selection + SHM) finds where the
@@ -704,3 +934,56 @@ AINet <- R6::R6Class(
     }
   )
 )
+
+
+# ============================================================================
+# Internal scaling helpers (shared by AINet$fit and ImmuneAlgorithm$predict)
+# ============================================================================
+# Kept as free functions, not R6 methods, so the base-class predict() can apply
+# the identical transform to new data without reaching into AINet internals.
+
+#' Learn a per-feature scaling from a training matrix
+#' @param X numeric matrix
+#' @param method one of "none","zscore","robust","arcsinh"
+#' @param cofactor arcsinh cofactor
+#' @return list(method, center, scale, cofactor) with stats in original units
+#' @keywords internal
+#' @noRd
+.bhive_learn_scaling <- function(X, method = "none", cofactor = 5) {
+  if (is.null(method) || method == "none") {
+    return(list(method = "none"))
+  }
+  if (method == "arcsinh") {
+    return(list(method = "arcsinh", cofactor = cofactor))
+  }
+  if (method == "zscore") {
+    ctr <- colMeans(X, na.rm = TRUE)
+    scl <- apply(X, 2, stats::sd, na.rm = TRUE)
+  } else if (method == "robust") {
+    ctr <- apply(X, 2, stats::median, na.rm = TRUE)
+    scl <- apply(X, 2, stats::IQR, na.rm = TRUE)
+  } else {
+    stop("Unknown scaling method: ", method)
+  }
+  # Guard against zero-variance columns (constant features) -> divide by 1.
+  scl[!is.finite(scl) | scl <= 0] <- 1
+  list(method = method, center = ctr, scale = scl)
+}
+
+#' Apply a learned scaling to a matrix
+#' @keywords internal
+#' @noRd
+.bhive_apply_scaling <- function(X, scaling) {
+  if (is.null(scaling) || scaling$method == "none") return(X)
+  if (scaling$method == "arcsinh") return(asinh(X / scaling$cofactor))
+  sweep(sweep(X, 2, scaling$center, `-`), 2, scaling$scale, `/`)
+}
+
+#' Invert a learned scaling (map prototypes back to original units)
+#' @keywords internal
+#' @noRd
+.bhive_invert_scaling <- function(A, scaling) {
+  if (is.null(scaling) || scaling$method == "none") return(A)
+  if (scaling$method == "arcsinh") return(sinh(A) * scaling$cofactor)
+  sweep(sweep(A, 2, scaling$scale, `*`), 2, scaling$center, `+`)
+}

@@ -22,7 +22,11 @@ bHIVE(
   noImprovementLimit = Inf,
   initMethod = c("sample", "random", "random_uniform", "kmeans++"),
   k = 3,
-  verbose = TRUE
+  scale = c("none", "zscore", "robust", "arcsinh"),
+  targetK = NULL,
+  epsilonQuantile = NULL,
+  verbose = TRUE,
+  ...
 )
 }
 \arguments{
@@ -93,11 +97,30 @@ based on improvement.}
   coverage.
 }}
 
-\item{k}{Integer. Number of top-matching antibodies (by affinity) to 
+\item{k}{Integer. Number of top-matching antibodies (by affinity) to
 consider cloning for each data point.}
 
-\item{verbose}{Logical. If \code{TRUE}, prints progress messages each 
+\item{scale}{Character. Per-feature input scaling: \code{"none"} (default),
+\code{"zscore"}, \code{"robust"} (median/IQR), or \code{"arcsinh"} (CyTOF).
+Passed to \code{\link{AINet}}; makes \code{epsilon} and distances behave
+consistently across datasets of different magnitude.}
+
+\item{targetK}{Integer or NULL. If set, force the clustering result to
+exactly \code{targetK} clusters via a seeded K-means refinement (the immune
+network supplies the seeds). NULL (default) keeps the emergent cluster count.}
+
+\item{epsilonQuantile}{Numeric in (0, 1) or NULL. If set, the suppression
+threshold adapts each iteration to this quantile of pairwise antibody
+distances instead of the fixed \code{epsilon}.}
+
+\item{verbose}{Logical. If \code{TRUE}, prints progress messages each
 iteration.}
+
+\item{...}{Additional arguments forwarded to \code{\link{AINet}}, including
+immunology modules (\code{shm}, \code{idiotypic}, \code{germinalCenter},
+\code{microenvironment}, \code{activation}, \code{memory},
+\code{classSwitcher}, \code{init}) and \code{consolidate} /
+\code{consolidationSteps}.}
 }
 \value{
 A list:

@@ -198,17 +198,22 @@ swarmbHIVE <- function(X,
   # 3) Function to run one combo
   #-----------------------------
   .evaluate_combo <- function(params_row) {
-    # bHIVE with given params
-    model <- bHIVE(
-      X = X,
-      y = y,
-      task = task,
-      nAntibodies = params_row$nAntibodies,
-      beta        = params_row$beta,
-      epsilon     = params_row$epsilon,
-      maxIter     = maxIter,
-      verbose     = FALSE  # override local verbose to reduce console clutter
-    )
+    # Forward every grid column to bHIVE so the swarm can tune any bHIVE/AINet
+    # argument present in `grid` (epsilon, beta, nAntibodies, and also
+    # affinityFunc, scale, targetK, epsilonQuantile, ...), not just the original
+    # three. Columns are matched to bHIVE arguments by name; unknown columns are
+    # silently dropped.
+    args <- as.list(params_row)
+    args$metric_value <- NULL
+    bhive_formals <- names(formals(bHIVE))
+    args <- args[intersect(names(args), bhive_formals)]
+    args$X       <- X
+    args$y       <- y
+    args$task    <- task
+    args$maxIter <- maxIter
+    args$verbose <- FALSE  # override local verbose to reduce console clutter
+
+    model <- do.call(bHIVE, args)
     # compute metric
     mvalue <- .calc_metric(model, X, y, task, metric, dist_mat)
     

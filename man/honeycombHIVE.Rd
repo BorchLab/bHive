@@ -16,6 +16,7 @@ honeycombHIVE(
   maxIter = 10,
   collapseMethod = c("centroid", "medoid", "median", "mode"),
   minClusterSize = NULL,
+  smallClusterAction = c("merge", "keep", "drop"),
   distance = "euclidean",
   verbose = TRUE,
   refine = FALSE,
@@ -56,8 +57,18 @@ layer.}
 
 \item{collapseMethod}{One of "centroid","medoid","median","mode".}
 
-\item{minClusterSize}{Minimum cluster size. Smaller clusters can be 
-merged/discarded if not NULL.}
+\item{minClusterSize}{Minimum cluster size. Clusters with fewer members are
+handled per \code{smallClusterAction}. \code{NULL} (default) keeps every
+cluster regardless of size.}
+
+\item{smallClusterAction}{One of \code{"merge"} (default), \code{"keep"}, or
+\code{"drop"}, controlling clusters below \code{minClusterSize}.
+\code{"merge"} reassigns their members to the nearest surviving prototype so
+no observation is lost (the rare cluster is absorbed, not deleted).
+\code{"keep"} retains the small cluster as its own prototype (use this to
+\emph{preserve} rare populations). \code{"drop"} is the legacy behavior that
+discards the cluster and its members from subsequent layers. Ignored when
+\code{minClusterSize} is \code{NULL}.}
 
 \item{distance}{Distance metric for medoid calculation, e.g. "euclidean".}
 
