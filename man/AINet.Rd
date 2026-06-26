@@ -69,6 +69,12 @@ Create a new AINet algorithm instance.
   initMethod = "sample",
   consolidate = TRUE,
   consolidationSteps = 10L,
+  scale = c("none", "zscore", "robust", "arcsinh"),
+  scaleCofactor = 5,
+  targetK = NULL,
+  epsilonQuantile = NULL,
+  coverageBoost = FALSE,
+  coverageQuantile = 0.05,
   shm = NULL,
   init = NULL,
   activation = NULL,
@@ -118,6 +124,45 @@ pulled onto the data manifold and become true data-space prototypes.
 Has no effect on classification. Default TRUE.}
 
 \item{\code{consolidationSteps}}{Integer. Maximum consolidation iterations.}
+
+\item{\code{scale}}{Character. Per-feature input scaling applied at \code{fit()}
+and re-applied to new data at \code{predict()}. One of \code{"none"}
+(default, no transform), \code{"zscore"} (center/SD), \code{"robust"}
+(median / IQR, outlier-tolerant), or \code{"arcsinh"} (inverse
+hyperbolic sine with cofactor \code{scaleCofactor}, the standard
+mass-cytometry transform). Because \code{epsilon}, mutation scale, and
+all distances live in feature units, scaling makes the same defaults
+behave consistently across datasets of different magnitude.}
+
+\item{\code{scaleCofactor}}{Numeric. Cofactor for \code{scale = "arcsinh"}
+(\code{asinh(x / cofactor)}). Default 5 (CyTOF convention; use ~150 for
+fluorescence flow).}
+
+\item{\code{targetK}}{Integer or NULL. If set, force the clustering solution to
+exactly \code{targetK} clusters. Affinity maturation still discovers
+where prototypes belong, but the final consolidation seeds a K-means
+(Lloyd) refinement at exactly \code{targetK} centroids: surviving
+antibodies are agglomerated (if more than K) or split with k-means++ (if
+fewer than K) before refinement. This decouples the reported cluster
+count from the emergent suppression dynamics. NULL (default) keeps the
+emergent, self-selected K. Ignored for classification.}
+
+\item{\code{epsilonQuantile}}{Numeric in (0, 1) or NULL. If set, the suppression
+threshold is recomputed each iteration as this quantile of the pairwise
+distances among the current antibodies, making suppression scale-free
+and adaptive instead of using the fixed \code{epsilon}. NULL (default)
+uses the fixed \code{epsilon}.}
+
+\item{\code{coverageBoost}}{Logical. Clustering only. After maturation, find
+data points that no surviving antibody covers well (max affinity in the
+bottom \code{coverageQuantile} tail) and seed fresh antibodies there
+with k-means++. Counters the clonal-selection bias toward dense regions,
+which otherwise leaves rare populations unrepresented. Pairs naturally
+with \code{targetK}: the extra seeds give the forced-K refinement
+candidate prototypes for sparse populations. Default FALSE.}
+
+\item{\code{coverageQuantile}}{Numeric in (0, 1). Affinity-coverage tail that
+defines "poorly covered" points for \code{coverageBoost}. Default 0.05.}
 
 \item{\code{shm}}{An SHMEngine instance or NULL for default uniform mutation.}
 

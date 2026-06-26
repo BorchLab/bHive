@@ -1,3 +1,45 @@
+# bHIVE 0.99.6
+
+## New Behavior
+* **Unified engine.** `bHIVE()` is now a thin wrapper over the `AINet` R6
+  engine instead of a separate pure-R implementation. `swarmbHIVE()` and
+  `honeycombHIVE()` call `bHIVE()`, so they now inherit the C++ clonal-selection
+  and suppression backends, Lloyd consolidation, input scaling, target-K, and
+  all composable immunology modules. The old module-free R loop is retired. The
+  return value gains `antibodies_unscaled` and (from `bHIVE()`) a `model`
+  handle; the historical `antibodies` / `assignments` / `task` fields are
+  unchanged. `swarmbHIVE()` now forwards every grid column to `bHIVE()`, so any
+  `bHIVE`/`AINet` argument can be tuned, not just `nAntibodies`/`beta`/`epsilon`.
+
+* **Input scaling.** `AINet$new()` and `bHIVE()` gain a `scale` argument
+  (`"none"`, `"zscore"`, `"robust"`, `"arcsinh"`). The transform is learned at
+  `fit()` and re-applied to new data at `predict()`. Because `epsilon`,
+  mutation scale, and every distance live in feature units, scaling makes the
+  same defaults behave consistently across datasets of different magnitude.
+  `arcsinh` (cofactor `scaleCofactor`, default 5) is the standard mass-cytometry
+  transform. `affinityParams$alpha = "auto"` sets the RBF/Laplace bandwidth by
+  the median heuristic (alpha = 1 / median pairwise squared distance).
+
+* **Target-K clustering.** New `targetK` argument forces the clustering result
+  to exactly K clusters. Affinity maturation still discovers where prototypes
+  belong, but a seeded K-means refinement coerces the count: surviving
+  antibodies are agglomerated (if more than K) or split with k-means++ (if
+  fewer). This decouples the reported cluster count from the scale-sensitive
+  emergent suppression dynamics.
+
+* **Scale-free suppression.** New `epsilonQuantile` argument recomputes the
+  suppression threshold each iteration as a quantile of pairwise antibody
+  distances, adapting to the repertoire's own spread instead of a fixed
+  feature-unit `epsilon`.
+
+* **Rare-population protection.** New `coverageBoost` (with `coverageQuantile`)
+  seeds fresh antibodies among the worst-covered data points after maturation,
+  countering the clonal-selection bias toward dense regions that otherwise
+  leaves rare populations unrepresented. `honeycombHIVE()` gains
+  `smallClusterAction` (`"merge"`, `"keep"`, `"drop"`): small clusters are now
+  merged into the nearest prototype (no observations dropped) or kept as rare
+  prototypes by default, instead of being silently deleted.
+
 # bHIVE 0.99.5
 
 ## Performance
