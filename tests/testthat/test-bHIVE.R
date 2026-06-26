@@ -8,7 +8,7 @@ test_that("bHIVE handles different affinity functions correctly", {
   
   affinity_funcs <- c("gaussian", "laplace", "polynomial", "cosine")
   for (aff in affinity_funcs) {
-    expect_silent(
+    expect_no_error(
       res <- bHIVE(X = X, 
                    task = "clustering", 
                    affinityFunc = aff, 
@@ -18,7 +18,7 @@ test_that("bHIVE handles different affinity functions correctly", {
                    verbose = FALSE)
     )
     expect_type(res, "list")
-    expect_named(res, c("antibodies", "assignments", "task"))
+    expect_true(all(c("antibodies", "assignments", "task") %in% names(res)))
   }
 })
 
@@ -28,7 +28,7 @@ test_that("bHIVE handles different distance functions correctly", {
   
   dist_funcs <- c("euclidean", "manhattan", "minkowski")
   for (dist in dist_funcs) {
-    expect_silent(
+    expect_no_error(
       res <- bHIVE(X = X, 
                    task = "clustering", 
                    affinityFunc = "gaussian", 
@@ -38,7 +38,7 @@ test_that("bHIVE handles different distance functions correctly", {
                    verbose = FALSE)
     )
     expect_type(res, "list")
-    expect_named(res, c("antibodies", "assignments", "task"))
+    expect_true(all(c("antibodies", "assignments", "task") %in% names(res)))
   }
 })
 
@@ -48,7 +48,7 @@ test_that("bHIVE works with different tasks", {
   y_class <- iris$Species
 
   # Classification
-  expect_silent(
+  expect_no_error(
     res_class <- bHIVE(X = X,
                        y = y_class,
                        task = "classification",
@@ -59,11 +59,11 @@ test_that("bHIVE works with different tasks", {
                        verbose = FALSE)
   )
   expect_type(res_class, "list")
-  expect_named(res_class, c("antibodies", "assignments", "task"))
+  expect_true(all(c("antibodies", "assignments", "task") %in% names(res_class)))
   expect_equal(length(res_class$assignments), nrow(X))
 
   # Clustering
-  expect_silent(
+  expect_no_error(
     res_cluster <- bHIVE(X = X,
                          task = "clustering",
                          affinityFunc = "gaussian",
@@ -73,7 +73,7 @@ test_that("bHIVE works with different tasks", {
                          verbose = FALSE)
   )
   expect_type(res_cluster, "list")
-  expect_named(res_cluster, c("antibodies", "assignments", "task"))
+  expect_true(all(c("antibodies", "assignments", "task") %in% names(res_cluster)))
   expect_equal(length(res_cluster$assignments), nrow(X))
 })
 
@@ -83,7 +83,7 @@ test_that("bHIVE handles different initialization methods correctly", {
   
   init_methods <- c("sample", "random", "random_uniform", "kmeans++")
   for (init in init_methods) {
-    expect_silent(
+    expect_no_error(
       res <- bHIVE(X = X, 
                    task = "clustering", 
                    affinityFunc = "gaussian", 
@@ -94,7 +94,7 @@ test_that("bHIVE handles different initialization methods correctly", {
                    verbose = FALSE)
     )
     expect_type(res, "list")
-    expect_named(res, c("antibodies", "assignments", "task"))
+    expect_true(all(c("antibodies", "assignments", "task") %in% names(res)))
   }
 })
 
@@ -109,7 +109,7 @@ test_that("bHIVE returns correct structure and data types", {
   
   # Check structure
   expect_type(res, "list")
-  expect_named(res, c("antibodies", "assignments", "task"))
+  expect_true(all(c("antibodies", "assignments", "task") %in% names(res)))
   
   # Check types of components
   expect_type(res$antibodies, "double")

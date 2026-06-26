@@ -56,10 +56,25 @@
 #'     \item \code{"kmeans++"} - tries a kmeans++-like initialization for 
 #'     coverage.
 #'   }
-#' @param k Integer. Number of top-matching antibodies (by affinity) to 
+#' @param k Integer. Number of top-matching antibodies (by affinity) to
 #' consider cloning for each data point.
-#' @param verbose Logical. If \code{TRUE}, prints progress messages each 
+#' @param scale Character. Per-feature input scaling: \code{"none"} (default),
+#' \code{"zscore"}, \code{"robust"} (median/IQR), or \code{"arcsinh"} (CyTOF).
+#' Passed to \code{\link{AINet}}; makes \code{epsilon} and distances behave
+#' consistently across datasets of different magnitude.
+#' @param targetK Integer or NULL. If set, force the clustering result to
+#' exactly \code{targetK} clusters via a seeded K-means refinement (the immune
+#' network supplies the seeds). NULL (default) keeps the emergent cluster count.
+#' @param epsilonQuantile Numeric in (0, 1) or NULL. If set, the suppression
+#' threshold adapts each iteration to this quantile of pairwise antibody
+#' distances instead of the fixed \code{epsilon}.
+#' @param verbose Logical. If \code{TRUE}, prints progress messages each
 #' iteration.
+#' @param ... Additional arguments forwarded to \code{\link{AINet}}, including
+#' immunology modules (\code{shm}, \code{idiotypic}, \code{germinalCenter},
+#' \code{microenvironment}, \code{activation}, \code{memory},
+#' \code{classSwitcher}, \code{init}) and \code{consolidate} /
+#' \code{consolidationSteps}.
 #'
 #' @return A list:
 #'   \itemize{
@@ -100,395 +115,77 @@
 #'
 #' @importFrom stats rnorm runif sd
 #' @export
-bHIVE <- function(X, 
-                  y = NULL, 
-                  task = NULL, 
-                  nAntibodies = 20, 
-                  beta = 5, 
-                  epsilon = 0.01, 
+bHIVE <- function(X,
+                  y = NULL,
+                  task = NULL,
+                  nAntibodies = 20,
+                  beta = 5,
+                  epsilon = 0.01,
                   maxIter = 50,
-                  affinityFunc = "gaussian", 
+                  affinityFunc = "gaussian",
                   distFunc = "euclidean",
-                  affinityParams = list(alpha = 1, 
-                                        c = 1, 
-                                        p = 2, 
+                  affinityParams = list(alpha = 1,
+                                        c = 1,
+                                        p = 2,
                                         Sigma = NULL),
-                  mutationDecay = 1.0, 
-                  mutationMin = 0.01, 
+                  mutationDecay = 1.0,
+                  mutationMin = 0.01,
                   maxClones = Inf,
-                  stopTolerance = 0.0, 
+                  stopTolerance = 0.0,
                   noImprovementLimit = Inf,
-                  initMethod = c("sample", "random", "random_uniform", "kmeans++"), 
-                  k = 3, 
-                  verbose = TRUE) {
-  #TODO Parallel or batch approach to affinity matrix
-  #TODO Can we make specialized antibodies similar to isotypes?
+                  initMethod = c("sample", "random", "random_uniform", "kmeans++"),
+                  k = 3,
+                  scale = c("none", "zscore", "robust", "arcsinh"),
+                  targetK = NULL,
+                  epsilonQuantile = NULL,
+                  verbose = TRUE,
+                  ...) {
   # ====================================
   # 0) Basic Validation & Task Inference
   # ====================================
-  .validate_bHIVE_input(X, y)  
-  
+  # bHIVE is now a thin functional wrapper over the AINet R6 engine. This is
+  # the single code path: the C++ clonal-selection/suppression backends,
+  # Lloyd consolidation, scaling, target-K, and the composable immunology
+  # modules all live in AINet, so swarmbHIVE() and honeycombHIVE() (which call
+  # bHIVE) inherit every one of them. The previous pure-R loop duplicated a
+  # slower, module-free subset of this and has been retired.
+  .validate_bHIVE_input(X, y)
+
   if (is.null(task)) {
-    if (is.null(y)) {
-      task <- "clustering"
-    } else {
-      task <- "classification"
-    }
+    task <- if (is.null(y)) "clustering" else "classification"
   }
-  task <- match.arg(task, c("clustering","classification"))
+  task <- match.arg(task, c("clustering", "classification"))
+  initMethod <- match.arg(initMethod,
+                          c("sample", "random", "random_uniform", "kmeans++"))
+  scale <- match.arg(scale)
 
-  initMethod <- match.arg(initMethod, c("sample", "random", "random_uniform","kmeans++"))
-
-  X <- as.matrix(X)
-  n <- nrow(X)
-  d <- ncol(X)
-
-
-  # ===================
-  # 1. Antibody Initialization
-  # ===================
-  A <- switch(
-    initMethod,
-    "sample" = { X[sample.int(n, 
-                              size = nAntibodies, 
-                              replace = TRUE), , drop=FALSE] },
-    "random" = { xMean <- colMeans(X)
-    xSd   <- apply(X, 2, sd) + 1e-8
-    mat   <- matrix(rnorm(nAntibodies * d), nrow = nAntibodies)
-    mat   <- sweep(mat, 2, xSd, `*`)
-    sweep(mat, 2, xMean, `+`)},
-    "random_uniform" = { xMin <- apply(X, 2, min)
-    xMax <- apply(X, 2, max)
-    mat  <- matrix(runif(nAntibodies * d), nrow = nAntibodies)
-    for (col_i in seq_len(d)) {
-      range_i <- xMax[col_i] - xMin[col_i]
-      mat[, col_i] <- xMin[col_i] + range_i * mat[, col_i]
-    }
-    mat},
-    "kmeans++" = {
-      .init_kmeanspp(X, nAntibodies)  # Assume you have a kmeans++ init function
-    }
+  model <- AINet$new(
+    nAntibodies        = nAntibodies,
+    beta               = beta,
+    epsilon            = epsilon,
+    maxIter            = maxIter,
+    k                  = k,
+    affinityFunc       = affinityFunc,
+    distFunc           = distFunc,
+    affinityParams     = affinityParams,
+    mutationDecay      = mutationDecay,
+    mutationMin        = mutationMin,
+    maxClones          = maxClones,
+    stopTolerance      = stopTolerance,
+    noImprovementLimit = noImprovementLimit,
+    initMethod         = initMethod,
+    scale              = scale,
+    targetK            = targetK,
+    epsilonQuantile    = epsilonQuantile,
+    verbose            = verbose,
+    ...
   )
-  if (!is.matrix(A) || nrow(A) == 0) {
-    stop("Initialization of antibodies failed. Check nAntibodies and input X.")
-  }
-  
-  m <- nrow(A) 
-  
-  # ===================
-  # 2. Pick Affinity & Distance
-  # ===================
-  affFn <- switch(affinityFunc,
-                  "gaussian"   = .affinity_RBF_custom,
-                  "laplace"    = .affinity_laplace_custom,
-                  "polynomial" = .affinity_poly_custom,
-                  "cosine"     = .affinity_cosine_custom,
-                  "hamming"    = .affinity_hamming_custom,
-                  stop("Invalid affinityFunc."))
-  distFn <- switch(distFunc,
-                   "euclidean"   = .dist_euclidean_custom,
-                   "manhattan"   = .dist_manhattan_custom,
-                   "minkowski"   = .dist_minkowski_custom,
-                   "cosine"      = .dist_cosine_custom,
-                   "mahalanobis" = .dist_mahalanobis_custom,
-                   "hamming"     = .dist_hamming_custom,
-                   stop("Invalid distFunc."))
-  
-  # ===================
-  # 3. Task-Specific Setup
-  # ===================
-  if (task == "classification") {
-    classes <- levels(y)
-    nClasses <- length(classes)
-    class_counts <- matrix(0, nrow = m, ncol = nClasses)
-    colnames(class_counts) <- classes
-  }
-  
-  # For early stopping
-  noImproveCount <- 0
-  prevCount <- m
-  
-  # ======================
-  # 4) Main Iteration Loop
-  # ======================
-  
-  for (iter in seq_len(maxIter)) {
-    # reset counters
-    if (task=="classification") {
-      class_counts[] <- 0
-    }
-    
-    # For each data point
-    for (i in seq_len(n)) {
-      x_i <- X[i,]
-      
-      # compute affinity
-      aff_values <- numeric(m)
-      for (j in seq_len(m)) {
-        aff_values[j] <- affFn(x_i, A[j, ], affinityParams)
-      }
-      
-      # If max affinity is zero or NA => skip
-      max_aff <- max(aff_values, na.rm = TRUE)
-      if (max_aff == 0 || is.na(max_aff)) next
-      
-      # Identify top k antibodies
-      k2 <- min(k, m)
-      top_idx <- sort.int(aff_values, decreasing=TRUE, index.return=TRUE)$ix[seq_len(k2)]
-      
-      # classification counters
-      if (task == "classification") {
-        y_class <- as.character(y[i])
-        class_col <- match(y_class, colnames(class_counts))
-        # Weighted vote
-        for (jj in top_idx) {
-          class_counts[jj, class_col] <- class_counts[jj, class_col] + aff_values[jj]
-        }
-      }
-      
-      # clone/mutate
-      for (jj in top_idx) {
-        f_j <- aff_values[jj]
-        nClones <- min(maxClones, floor(beta * (f_j / max_aff)))
-        if (nClones <= 0) next
-        
-        for (clone_id in seq_len(nClones)) {
-          # decayed mutation rate for iteration
-          mutation_rate <- max((1.0 - f_j) * mutationDecay^(iter - 1), mutationMin)
-          # propose mutated antibody
-          mutated   <- A[jj, ] + rnorm(d, mean=0, sd=mutation_rate)
-          f_mutated <- affFn(x_i, mutated, affinityParams)
-          if (f_mutated > f_j) {
-            A[jj, ] <- mutated  # keep improvement
-          }
-        }
-      }
-    }
-    
-    # update classification
-    if (task=="classification") {
-      # each antibody's label is the class with largest class_counts row
-      antibody_classes <- apply(class_counts, 1, function(row) {
-        if (all(row==0)) {
-          # fallback
-          colnames(class_counts)[sample(ncol(class_counts),1)]
-        } else {
-          colnames(class_counts)[which.max(row)]
-        }
-      })
-    }
-    
-    # ======================
-    # 5) Network Suppression
-    # =======================
-    keep <- rep(TRUE, m)
-    for (u in seq_len(m - 1)) {
-      if (!keep[u]) next
-      for (v in seq.int(u+1, m)) {
-        if (!keep[v]) next
-        # TODO: Possible point of improvement approximate with RANN or Annoy
-        dist_uv <- distFn(A[u, ], A[v, ], affinityParams)
-        if (dist_uv < epsilon) {
-          keep[v] <- FALSE
-        }
-      }
-    }
-    
-    # Identify the indices of the antibodies to keep.
-    kept_indices <- which(keep)
-    
-    # Subset the antibody matrix and associated variables accordingly.
-    A <- A[kept_indices, , drop = FALSE]
-    m_new <- nrow(A)
-    
-    if (task == "classification") {
-      class_counts <- class_counts[kept_indices, , drop = FALSE]
-    }
-    
-    # If suppressed everything => abort
-    if (m_new == 0) {
-      stop("All antibodies were suppressed. Increase nAntibodies or decrease epsilon.")
-    }
-    
-    # For next iteration
-    m <- m_new
-    
-    # ========================
-    # 6) Early Stopping Check
-    # ========================
-    changeCount <- abs(m - prevCount)
-    if (changeCount <= stopTolerance) {
-      noImproveCount <- noImproveCount + 1
-    } else {
-      noImproveCount <- 0
-    }
-    prevCount <- m
-    
-    if (noImproveCount >= noImprovementLimit) {
-      if (verbose) {
-        cat("Early stopping: no improvement for", noImproveCount, "iterations.\n")
-      }
-      break
-    }
-    
-    if (verbose) {
-      cat(sprintf("Iteration %d | #Antibodies: %d | noImproveCount: %d\n",
-                  iter, m, noImproveCount))
-    }
-  }
-  
-  # =====================
-  # 7) Final assignments
-  # =====================
-  if (task == "clustering") {
-    # Find nearest antibody by distance => cluster IDs
-    assignments <- integer(n)
-    for (i in seq_len(n)) {
-      x_i <- X[i, ]
-      min_dist <- Inf
-      best_j <- NA
-      for (j in seq_len(m)) {
-        d_j <- distFn(x_i, A[j, ], affinityParams)
-        if (d_j < min_dist) {
-          min_dist <- d_j
-          best_j <- j
-        }
-      }
-      assignments[i] <- best_j
-    }
-    # optionally re-label cluster IDs from 1..m
-    assignments <- as.numeric(factor(assignments))
-    
-    res <- list(
-      antibodies  = A,
-      assignments = assignments,
-      task        = task
-    )
-    
-  } else {
-    # Classification: choose antibody with largest affinity per row
-    assignments <- character(n)
-    for (i in seq_len(n)) {
-      x_i <- X[i, ]
-      best_aff <- -Inf
-      best_j <- 1L
-      for (j in seq_len(m)) {
-        f_j <- affFn(x_i, A[j, ], affinityParams)
-        if (f_j > best_aff) {
-          best_aff <- f_j
-          best_j <- j
-        }
-      }
-      assignments[i] <- antibody_classes[best_j]
-    }
+  model$fit(X, y = y, task = task)
 
-    res <- list(
-      antibodies  = A,
-      assignments = assignments,
-      task        = task
-    )
-  }
-
-  return(res)
-}
-
-
-# ---------------------------
-# HELPER FUNCTIONS
-# ---------------------------
-
-# Simple kmeans++ style initialization
-.init_kmeanspp <- function(X, nCenters) {
-  X <- as.matrix(X)
-  n <- nrow(X)
-  d <- ncol(X)
-  
-  # 1) choose one center uniformly at random
-  centers <- matrix(0, nrow = nCenters, ncol = d)
-  idx <- sample(n, 1)
-  centers[1, ] <- X[idx, ]
-  
-  # 2) For each data point x, compute D(x) = min distance to any chosen center
-  # 3) Choose a new data point at random weighted by D(x)^2
-  if (nCenters > 1) {
-    for (cId in 2:nCenters) {
-      dists <- vapply(seq_len(n), function(i) {
-        min(rowSums((centers[seq_len(cId-1), , drop = FALSE] - X[i, ])^2))
-      }, numeric(1))
-      probs <- dists / sum(dists)
-      idx <- sample(n, 1, prob = probs)
-      centers[cId, ] <- X[idx, ]
-    }
-  }
-  centers
-}
-
-
-# AFFINITY FUNCTIONS
-.affinity_RBF_custom <- function(x, y, params) {
-  # Gaussian (RBF) kernel: exp(-alpha * ||x-y||^2)
-  dist2 <- sum((x - y)^2)
-  exp(-params$alpha * dist2)
-}
-
-.affinity_laplace_custom <- function(x, y, params) {
-  # Laplace kernel: exp(-alpha * ||x-y||_1)
-  dist1 <- sum(abs(x - y))
-  exp(-params$alpha * dist1)
-}
-
-.affinity_poly_custom <- function(x, y, params) {
-  # Polynomial kernel: (x.y + c)^p
-  (sum(x * y) + params$c)^params$p
-}
-
-.affinity_cosine_custom <- function(x, y, params) {
-  # Cosine similarity: (x.y)/(||x||*||y||)
-  denom <- sqrt(sum(x^2)) * sqrt(sum(y^2))
-  if (denom == 0) return(0)
-  sum(x * y) / denom
-}
-
-.affinity_hamming_custom <- function(x, y, params) {
-  # Hamming similarity:
-  x_bin <- as.integer(x)
-  y_bin <- as.integer(y)
-  matches <- sum(x_bin == y_bin)
-  matches / length(x)
-}
-
-# DISTANCE FUNCTIONS
-.dist_euclidean_custom <- function(x, y, params) {
-  sqrt(sum((x - y)^2))
-}
-
-.dist_manhattan_custom <- function(x, y, params) {
-  sum(abs(x - y))
-}
-
-.dist_minkowski_custom <- function(x, y, params) {
-  p <- params$p
-  sum(abs(x - y)^p)^(1/p)
-}
-
-.dist_cosine_custom <- function(x, y, params) {
-  # 1 - Cosine similarity
-  cs <- .affinity_cosine_custom(x, y, params)
-  1 - cs
-}
-
-.dist_mahalanobis_custom <- function(x, y, params) {
-  # Sigma must be in params$Sigma
-  if (is.null(params$Sigma)) {
-    stop("Mahalanobis distance requires a covariance matrix Sigma in distParams.")
-  }
-  diff <- x - y
-  invSigma_diff <- solve(params$Sigma, diff)  
-  sqrt(sum(diff * invSigma_diff))
-}
-
-.dist_hamming_custom <- function(x, y, params) {
-  x_bin <- as.integer(x)
-  y_bin <- as.integer(y)
-  sum(x_bin != y_bin)
+  # Preserve the historical return contract: a plain list with antibodies,
+  # assignments and task. Carry the back-transformed prototypes and the
+  # fitted model along for callers that want them (NULL-safe for old code).
+  res <- model$result
+  res$model <- model
+  res
 }
